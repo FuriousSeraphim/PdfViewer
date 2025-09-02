@@ -3,6 +3,7 @@ package com.rajat.sample.pdfviewer
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
+import android.view.View
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -10,15 +11,12 @@ import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
 import com.rajat.pdfviewer.PdfRendererView
 import com.rajat.pdfviewer.PdfViewerActivity
+import com.rajat.pdfviewer.RenderQuality
 import com.rajat.pdfviewer.util.CacheStrategy
 import com.rajat.pdfviewer.util.ToolbarTitleBehavior
 import com.rajat.pdfviewer.util.SaveTo
-import com.rajat.sample.pdfviewer.databinding.ActivityMainBinding
 
-class MainActivity : AppCompatActivity() {
-
-    // View Binding
-    private lateinit var binding: ActivityMainBinding
+class MainActivity: AppCompatActivity() {
 
     // Sample PDF URLs
     private val largePdf = "https://css4.pub/2015/usenix/example.pdf"
@@ -36,8 +34,7 @@ class MainActivity : AppCompatActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
         // Inflate layout
-        binding = ActivityMainBinding.inflate(layoutInflater)
-        setContentView(binding.root)
+        setContentView(R.layout.activity_main)
 
         // Set Default ActionBar title
         supportActionBar?.title = "PDF Viewer"
@@ -50,22 +47,25 @@ class MainActivity : AppCompatActivity() {
      * Sets up click listeners for the UI buttons.
      */
     private fun setupListeners() {
-        binding.onlinePdf.setOnClickListener {
-            setupPdfStatusListener()
+        val pdfView = findViewById<PdfRendererView>(R.id.pdfView)
+
+        findViewById<View>(R.id.onlinePdf).setOnClickListener {
+            setupPdfStatusListener(pdfView)
             launchPdfFromUrl(largePdf1)
         }
 
-        binding.pickPdfButton.setOnClickListener {
+        findViewById<View>(R.id.pickPdfButton).setOnClickListener {
             launchFilePicker()
         }
 
-        binding.fromAssets.setOnClickListener {
+        findViewById<View>(R.id.fromAssets).setOnClickListener {
             launchPdfFromAssets("quote.pdf")
         }
 
-        binding.showInView.setOnClickListener {
-            setupPdfStatusListener()
-            binding.pdfView.initWithUrl(
+        findViewById<View>(R.id.showInView).setOnClickListener {
+            setupPdfStatusListener(pdfView)
+            pdfView.renderQuality = RenderQuality.HIGH
+            pdfView.initWithUrl(
                 url = largePdf,
                 lifecycleCoroutineScope = lifecycleScope,
                 lifecycle = lifecycle,
@@ -73,7 +73,7 @@ class MainActivity : AppCompatActivity() {
             )
         }
 
-        binding.openInCompose.setOnClickListener {
+        findViewById<View>(R.id.openInCompose).setOnClickListener {
             startActivity(Intent(this, ComposeActivity::class.java))
         }
     }
@@ -81,8 +81,8 @@ class MainActivity : AppCompatActivity() {
     /**
      * Sets up the PDF status listener for monitoring PDF rendering progress.
      */
-    private fun setupPdfStatusListener() {
-        binding.pdfView.statusListener = object : PdfRendererView.StatusCallBack {
+    private fun setupPdfStatusListener(pdfView: PdfRendererView) {
+        pdfView.statusListener = object: PdfRendererView.StatusCallBack {
             override fun onPdfLoadStart() {
                 Log.i("PDF Status", "Loading started")
             }
@@ -109,11 +109,11 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPdfRenderSuccess() {
                 Log.d("PDF Status", "Render successful")
-                binding.pdfView.jumpToPage(2)
+                pdfView.jumpToPage(2)
             }
         }
 
-        binding.pdfView.zoomListener = object : PdfRendererView.ZoomListener {
+        pdfView.zoomListener = object: PdfRendererView.ZoomListener {
             override fun onZoomChanged(isZoomedIn: Boolean, scale: Float) {
                 Log.i("PDF Zoom", "Zoomed in: $isZoomedIn, Scale: $scale")
             }

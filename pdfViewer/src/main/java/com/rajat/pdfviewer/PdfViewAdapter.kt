@@ -10,13 +10,18 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.animation.AlphaAnimation
 import android.view.animation.LinearInterpolator
+import android.widget.ImageView
+import androidx.core.view.isGone
+import androidx.core.view.isVisible
+import androidx.core.view.updateLayoutParams
 import androidx.recyclerview.widget.RecyclerView
-import com.rajat.pdfviewer.databinding.ListItemPdfPageBinding
 import com.rajat.pdfviewer.util.BitmapPool
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.Runnable
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -27,12 +32,11 @@ internal class PdfViewAdapter(
     private val pageSpacing: Rect,
     private val enableLoadingForPages: Boolean,
     private val renderQuality: RenderQuality,
-) : RecyclerView.Adapter<PdfViewAdapter.PdfPageViewHolder>() {
+): RecyclerView.Adapter<PdfViewAdapter.PdfPageViewHolder>() {
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PdfPageViewHolder =
-        PdfPageViewHolder(
-            ListItemPdfPageBinding.inflate(LayoutInflater.from(parent.context), parent, false)
-        )
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PdfPageViewHolder {
+        return PdfPageViewHolder(LayoutInflater.from(parent.context).inflate(R.layout.item_pdf_page, parent, false))
+    }
 
     override fun getItemCount(): Int = renderer.getPageCount()
 
@@ -45,46 +49,42 @@ internal class PdfViewAdapter(
         holder.cancelJobs()
     }
 
-    inner class PdfPageViewHolder(private val itemBinding: ListItemPdfPageBinding) :
-        RecyclerView.ViewHolder(itemBinding.root) {
+    inner class PdfPageViewHolder(itemView: View): RecyclerView.ViewHolder(itemView) {
+        private val pageView = itemView.findViewById<ImageView>(R.id.pageView)
+        private val progressBar = itemView.findViewById<View>(R.id.progressBar)
 
         private var currentBoundPage: Int = -1
         private var hasRealBitmap: Boolean = false
         private val fallbackHandler = Handler(Looper.getMainLooper())
-        private var scope = MainScope()
+        private val mainScope = MainScope()
 
-        private val DEBUG_LOGS_ENABLED = false
+        private val DEBUG_LOGS_ENABLED = true
 
         fun bind(position: Int) {
             cancelJobs()
+
             currentBoundPage = position
             hasRealBitmap = false
-            scope = MainScope()
 
-            val displayWidth = itemBinding.pageView.width.takeIf { it > 0 }
-                ?: context.resources.displayMetrics.widthPixels
+            val displayWidth = pageView.width.takeIf { it > 0 } ?: context.resources.displayMetrics.widthPixels
 
-            itemBinding.pageView.setImageBitmap(null)
+            pageView.setImageBitmap(null)
 
-            itemBinding.pageLoadingLayout.pdfViewPageLoadingProgress.visibility =
-                if (enableLoadingForPages) View.VISIBLE else View.GONE
+            progressBar.isVisible = enableLoadingForPages
 
-            scope.launch {
+            mainScope.launch {
                 val cached = withContext(Dispatchers.IO) {
                     renderer.getBitmapFromCache(position)
                 }
 
                 if (cached != null && currentBoundPage == position) {
                     if (DEBUG_LOGS_ENABLED) Log.d("PdfViewAdapter", "✅ Loaded page $position from cache")
-                    val aspectRatio = runCatching {
-                        cached.width.toFloat() / cached.height.toFloat()
-                    }.getOrElse { 1f }
-                    val height = (displayWidth / aspectRatio).toInt()
-                    itemBinding.updateLayoutParams(height)
-                    itemBinding.pageView.setImageBitmap(cached)
+                    val aspectRatio = cached.width.coerceAtLeast(1).toFloat() / cached.height.coerceAtLeast(1).toFloat()
+                    updateLayoutParams((displayWidth / aspectRatio).toInt())
+                    pageView.setImageBitmap(cached)
                     hasRealBitmap = true
-                    applyFadeInAnimation(itemBinding.pageView)
-                    itemBinding.pageLoadingLayout.pdfViewPageLoadingProgress.visibility = View.GONE
+                    applyFadeInAnimation(pageView)
+                    progressBar.isGone = true
                     return@launch
                 }
 
@@ -95,7 +95,7 @@ internal class PdfViewAdapter(
                         size.width.toFloat() / size.height.toFloat()
                     }.getOrElse { 1f }
                     val height = (displayWidth / aspectRatio).toInt()
-                    itemBinding.updateLayoutParams(height)
+                    updateLayoutParams(height)
 
                     val bitmapWidth = (displayWidth * renderQuality.qualityMultiplier).toInt()
                     val bitmapHeight = (height * renderQuality.qualityMultiplier).toInt()
@@ -106,20 +106,23 @@ internal class PdfViewAdapter(
             startPersistentFallbackRender(position)
         }
 
+        fun cancelJobs() {
+            mainScope.coroutineContext.cancelChildren()
+        }
+
         private fun renderAndApplyBitmap(page: Int, width: Int, height: Int) {
             val bitmap = BitmapPool.getBitmap(width, maxOf(1, height))
 
             renderer.renderPage(page, bitmap) { success, pageNo, rendered ->
-                scope.launch {
+                mainScope.launch {
                     if (success && currentBoundPage == pageNo) {
                         if (DEBUG_LOGS_ENABLED) Log.d("PdfViewAdapter", "✅ Render complete for page $pageNo")
-                        itemBinding.pageView.setImageBitmap(rendered ?: bitmap)
+                        pageView.setImageBitmap(rendered ?: bitmap)
                         hasRealBitmap = true
-                        applyFadeInAnimation(itemBinding.pageView)
-                        itemBinding.pageLoadingLayout.pdfViewPageLoadingProgress.visibility = View.GONE
+                        applyFadeInAnimation(pageView)
+                        progressBar.isGone = true
 
-                        val fallbackHeight = itemBinding.pageView.height.takeIf { it > 0 }
-                            ?: context.resources.displayMetrics.heightPixels
+                        val fallbackHeight = pageView.height.takeIf { it > 0 } ?: context.resources.displayMetrics.heightPixels
 
                         renderer.schedulePrefetch(
                             currentPage = pageNo,
@@ -139,13 +142,13 @@ internal class PdfViewAdapter(
         private fun retryRenderOnce(page: Int, width: Int, height: Int) {
             val retryBitmap = BitmapPool.getBitmap(width, maxOf(1, height))
             renderer.renderPage(page, retryBitmap) { success, retryPageNo, rendered ->
-                scope.launch {
+                mainScope.launch {
                     if (success && retryPageNo == currentBoundPage && !hasRealBitmap) {
                         if (DEBUG_LOGS_ENABLED) Log.d("PdfViewAdapter", "🔁 Retry success for page $retryPageNo")
-                        itemBinding.pageView.setImageBitmap(rendered ?: retryBitmap)
+                        pageView.setImageBitmap(rendered ?: retryBitmap)
                         hasRealBitmap = true
-                        applyFadeInAnimation(itemBinding.pageView)
-                        itemBinding.pageLoadingLayout.pdfViewPageLoadingProgress.visibility = View.GONE
+                        applyFadeInAnimation(pageView)
+                        progressBar.isGone = true
                     } else {
                         BitmapPool.recycleBitmap(retryBitmap)
                     }
@@ -153,29 +156,25 @@ internal class PdfViewAdapter(
             }
         }
 
-        private fun startPersistentFallbackRender(
-            page: Int,
-            retries: Int = 10,
-            delayMs: Long = 200L
-        ) {
+        private fun startPersistentFallbackRender(page: Int, retries: Int = 10, delayMs: Long = 200L) {
             var attempt = 0
 
             lateinit var task: Runnable
-            task = object : Runnable {
+            task = object: Runnable {
                 override fun run() {
                     if (currentBoundPage != page || hasRealBitmap) return
 
-                    scope.launch {
+                    mainScope.launch {
                         val cached = withContext(Dispatchers.IO) {
                             renderer.getBitmapFromCache(page)
                         }
 
                         if (cached != null && currentBoundPage == page) {
                             if (DEBUG_LOGS_ENABLED) Log.d("PdfViewAdapter", "🕒 Fallback applied for page $page on attempt $attempt")
-                            itemBinding.pageView.setImageBitmap(cached)
+                            pageView.setImageBitmap(cached)
                             hasRealBitmap = true
-                            applyFadeInAnimation(itemBinding.pageView)
-                            itemBinding.pageLoadingLayout.pdfViewPageLoadingProgress.visibility = View.GONE
+                            applyFadeInAnimation(pageView)
+                            progressBar.isGone = true
                         } else {
                             attempt++
                             if (attempt < retries) {
@@ -189,17 +188,13 @@ internal class PdfViewAdapter(
             fallbackHandler.postDelayed(task, delayMs)
         }
 
-        private fun ListItemPdfPageBinding.updateLayoutParams(height: Int) {
-            root.layoutParams = root.layoutParams.apply {
+        private fun updateLayoutParams(height: Int) {
+            itemView.updateLayoutParams {
                 this.height = height
-                (this as? ViewGroup.MarginLayoutParams)?.setMargins(
-                    pageSpacing.left, pageSpacing.top, pageSpacing.right, pageSpacing.bottom
-                )
+                if (this is ViewGroup.MarginLayoutParams) {
+                    setMargins(pageSpacing.left, pageSpacing.top, pageSpacing.right, pageSpacing.bottom)
+                }
             }
-        }
-
-        fun cancelJobs() {
-            scope.cancel()
         }
 
         private fun applyFadeInAnimation(view: View) {

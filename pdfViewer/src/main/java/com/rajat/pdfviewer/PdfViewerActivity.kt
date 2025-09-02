@@ -15,18 +15,20 @@ import android.util.Log
 import android.view.Menu
 import android.view.MenuInflater
 import android.view.MenuItem
+import android.view.View
 import android.view.View.GONE
 import android.view.View.VISIBLE
 import android.view.Window
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.Toolbar
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.DrawableCompat
 import androidx.lifecycle.lifecycleScope
-import com.rajat.pdfviewer.databinding.ActivityPdfViewerBinding
 import com.rajat.pdfviewer.util.CacheStrategy
 import com.rajat.pdfviewer.util.EdgeToEdgeHelper
 import com.rajat.pdfviewer.util.FileUtils.createPdfDocumentUri
@@ -43,16 +45,17 @@ import com.rajat.pdfviewer.util.SaveTo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.jetbrains.annotations.TestOnly
 import java.io.File
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
+import androidx.core.net.toUri
+import androidx.core.view.isVisible
 
 /**
  * Created by Rajat on 11,July,2020
  */
 
-class PdfViewerActivity : AppCompatActivity() {
+class PdfViewerActivity: AppCompatActivity() {
 
     private lateinit var file_not_downloaded_yet: String
     private lateinit var file_saved_to_downloads: String
@@ -68,7 +71,6 @@ class PdfViewerActivity : AppCompatActivity() {
     private var menuItem: MenuItem? = null
     private var fileUrl: String? = null
     private lateinit var headers: HeaderData
-    private lateinit var binding: ActivityPdfViewerBinding
     var downloadedFilePath: String? = null
     private var isDownloadButtonEnabled = false
     private lateinit var cacheStrategy: CacheStrategy
@@ -96,7 +98,7 @@ class PdfViewerActivity : AppCompatActivity() {
             enableZoom: Boolean = true,
             headers: Map<String, String> = emptyMap(),
             toolbarTitleBehavior: ToolbarTitleBehavior? = null,
-            cacheStrategy: CacheStrategy = CacheStrategy.MAXIMIZE_PERFORMANCE
+            cacheStrategy: CacheStrategy = CacheStrategy.MAXIMIZE_PERFORMANCE,
         ): Intent {
             val intent = Intent(context, PdfViewerActivity::class.java)
             intent.putExtra(FILE_URL, pdfUrl)
@@ -121,7 +123,7 @@ class PdfViewerActivity : AppCompatActivity() {
             fromAssets: Boolean = false,
             enableZoom: Boolean = true,
             toolbarTitleBehavior: ToolbarTitleBehavior? = null,
-            cacheStrategy: CacheStrategy = CacheStrategy.MAXIMIZE_PERFORMANCE
+            cacheStrategy: CacheStrategy = CacheStrategy.MAXIMIZE_PERFORMANCE,
         ): Intent {
             val intent = Intent(context, PdfViewerActivity::class.java)
             intent.putExtra(FILE_URL, path)
@@ -145,8 +147,7 @@ class PdfViewerActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
 
         // Inflate layout once (previously done twice)
-        binding = ActivityPdfViewerBinding.inflate(layoutInflater)
-        setContentView(binding.root)
+        setContentView(R.layout.activity_pdf_viewer)
 
         // Apply edge-to-edge window
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -167,9 +168,6 @@ class PdfViewerActivity : AppCompatActivity() {
     }
 
     private fun configureToolbar() {
-        val toolbarStyle = ToolbarStyle.from(this, intent)
-        val toolbarTitle = intent.getStringExtra(FILE_TITLE) ?: "PDF"
-
         try {
             // Check if system ActionBar exists (theme includes windowActionBar)
             supportActionBar?.hide() // Hide it (avoids double toolbar)
@@ -178,18 +176,21 @@ class PdfViewerActivity : AppCompatActivity() {
             Log.w("PdfViewer", "supportActionBar check failed: ${e.message}")
         }
 
+        val toolbar = findViewById<Toolbar>(R.id.toolbar)
+        val toolbarTitle = findViewById<TextView>(R.id.toolbarTitle)
+
         // Use our custom toolbar always
-        binding.myToolbar.visibility = VISIBLE
+        toolbar.visibility = VISIBLE
         try {
-            setSupportActionBar(binding.myToolbar)
+            setSupportActionBar(toolbar)
             supportActionBar?.setDisplayShowTitleEnabled(false)
         } catch (e: IllegalStateException) {
             // fallback — don't set toolbar, maybe layout-only mode
             Log.e("PdfViewer", "Can't setSupportActionBar(): ${e.message}")
         }
 
-        toolbarStyle.applyTo(binding.myToolbar, binding.toolbarTitle)
-        binding.toolbarTitle.text = toolbarTitle
+        ToolbarStyle.from(this, intent).applyTo(toolbar, toolbarTitle)
+        toolbarTitle.text = intent.getStringExtra(FILE_TITLE) ?: "PDF"
     }
 
     private fun applyEdgeToEdge(window: Window) {
@@ -206,11 +207,14 @@ class PdfViewerActivity : AppCompatActivity() {
         )
 
         // apply insets via helper
-        EdgeToEdgeHelper.applyInsets(window, binding.root, isDarkMode)
+        EdgeToEdgeHelper.applyInsets(window, findViewById(R.id.parentLayout), isDarkMode)
     }
 
     private fun applyThemeAttributes() {
-        ViewerStyle.from(this).applyTo(binding)
+        ViewerStyle.from(this).applyTo(
+            parentLayout = findViewById(R.id.parentLayout),
+            progressBar = findViewById(R.id.progressBar)
+        )
     }
 
     private fun extractIntentExtras() {
@@ -248,9 +252,12 @@ class PdfViewerActivity : AppCompatActivity() {
     }
 
     private fun init() {
-        binding.pdfView.statusListener = object : PdfRendererView.StatusCallBack {
+        val pdfView = findViewById<PdfRendererView>(R.id.pdfView)
+        val progressBar = findViewById<View>(R.id.progressBar)
+
+        pdfView.statusListener = object: PdfRendererView.StatusCallBack {
             override fun onPdfLoadStart() {
-                true.showProgressBar()
+                progressBar.isVisible = true
                 updateDownloadButtonState(false)
             }
 
@@ -263,15 +270,15 @@ class PdfViewerActivity : AppCompatActivity() {
             }
 
             override fun onPdfLoadProgress(
-                progress: Int, downloadedBytes: Long, totalBytes: Long?
+                progress: Int, downloadedBytes: Long, totalBytes: Long?,
             ) {
-                //Download is in progress
-                true.showProgressBar()
+                // Download is in progress
+                progressBar.isVisible = true
             }
 
             override fun onPdfLoadSuccess(absolutePath: String) {
                 runOnUiThread {
-                    false.showProgressBar()
+                    progressBar.isVisible = false
                     downloadedFilePath = absolutePath
                     if (menuItem == null) {
                         isDownloadButtonEnabled = true // ✅ Store state so it applies later
@@ -283,15 +290,15 @@ class PdfViewerActivity : AppCompatActivity() {
 
             override fun onError(error: Throwable) {
                 runOnUiThread {
-                    false.showProgressBar()
+                    progressBar.isVisible = false
                     val strings = ViewerStrings.from(this@PdfViewerActivity)
                     val errorMessage = strings.getMessageForError(error)
-                    showErrorDialog(errorMessage, isRetryable(error))
+                    showErrorDialog(pdfView, errorMessage, isRetryable(error))
                 }
             }
 
             override fun onPageChanged(currentPage: Int, totalPage: Int) {
-                //Page change. Not require
+                // Page change. Not require
             }
         }
 
@@ -299,17 +306,15 @@ class PdfViewerActivity : AppCompatActivity() {
             this.fileUrl = fileUrl
             if (isPDFFromPath) {
                 lifecycleScope.launch {
-                    initPdfViewerWithPath(fileUrl)
+                    initPdfViewerWithPath(pdfView, fileUrl)
                 }
             } else if (checkInternetConnection(this)) {
-                loadFileFromNetwork(fileUrl)
+                loadFileFromNetwork(pdfView, fileUrl)
             } else {
                 Toast.makeText(this, error_no_internet_connection, Toast.LENGTH_SHORT).show()
             }
         }
-
     }
-
 
     private fun isRetryable(error: Throwable): Boolean {
         return error is UnknownHostException || error is SocketTimeoutException || error.message?.contains(
@@ -317,13 +322,13 @@ class PdfViewerActivity : AppCompatActivity() {
         ) == true || error.message?.contains("Incomplete download") == true
     }
 
-    private fun showErrorDialog(message: String, shouldRetry: Boolean) {
+    private fun showErrorDialog(pdfView: PdfRendererView, message: String, shouldRetry: Boolean) {
         val strings = ViewerStrings.from(this)
         val builder = AlertDialog.Builder(this)
             .setTitle(strings.errorDialogTitle)
             .setMessage(message)
         if (shouldRetry) {
-            builder.setPositiveButton(pdf_viewer_retry) { _, _ -> loadFileFromNetwork(fileUrl) }
+            builder.setPositiveButton(pdf_viewer_retry) { _, _ -> loadFileFromNetwork(pdfView, fileUrl) }
         }
         builder.setNegativeButton(pdf_viewer_cancel, null).show()
     }
@@ -346,9 +351,6 @@ class PdfViewerActivity : AppCompatActivity() {
         return true
     }
 
-    @TestOnly
-    fun isDownloadButtonVisible(): Boolean = menuItem?.isVisible == true
-
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         // Handle item selection.
         return when (item.itemId) {
@@ -366,21 +368,23 @@ class PdfViewerActivity : AppCompatActivity() {
         }
     }
 
-    private fun loadFileFromNetwork(fileUrl: String?) {
-        initPdfViewer(
-            fileUrl
-        )
+    private fun loadFileFromNetwork(pdfView: PdfRendererView, fileUrl: String?) {
+        initPdfViewer(pdfView, fileUrl)
     }
 
-    private fun initPdfViewer(fileUrl: String?) {
-        if (TextUtils.isEmpty(fileUrl)) onPdfError("")
-        //Initiating PDf Viewer with URL
+    private fun initPdfViewer(pdfView: PdfRendererView, fileUrl: String?) {
+        if (fileUrl.isNullOrEmpty()) {
+            onPdfError("")
+            return
+        }
+
+        // Initiating PDf Viewer with URL
         try {
-            binding.pdfView.setZoomEnabled(isZoomEnabled)
-            binding.pdfView.initWithUrl(
-                fileUrl!!,
-                headers,
-                lifecycleScope,
+            pdfView.setZoomEnabled(isZoomEnabled)
+            pdfView.initWithUrl(
+                url = fileUrl,
+                headers = headers,
+                lifecycleCoroutineScope = lifecycleScope,
                 lifecycle = lifecycle,
                 cacheStrategy = cacheStrategy
             )
@@ -389,21 +393,20 @@ class PdfViewerActivity : AppCompatActivity() {
         }
     }
 
-    private suspend fun initPdfViewerWithPath(filePath: String?) {
-        if (TextUtils.isEmpty(filePath)) {
+    private suspend fun initPdfViewerWithPath(pdfView: PdfRendererView, filePath: String?) {
+        if (filePath.isNullOrEmpty()) {
             onPdfError("")
             return
         }
+
         try {
-            val file = if (filePath!!.startsWith("content://")) {
-                uriToFile(applicationContext, Uri.parse(filePath))
-            } else if (isFromAssets) {
-                fileFromAsset(this, filePath)
-            } else {
-                File(filePath)
+            val file = when {
+                filePath.startsWith("content://") -> uriToFile(applicationContext, filePath.toUri())
+                isFromAssets -> fileFromAsset(this, filePath)
+                else -> File(filePath)
             }
-            binding.pdfView.setZoomEnabled(isZoomEnabled)
-            binding.pdfView.initWithFile(file, cacheStrategy)
+            pdfView.setZoomEnabled(isZoomEnabled)
+            pdfView.initWithFile(file, cacheStrategy)
         } catch (e: Exception) {
             onPdfError(e.toString())
         }
@@ -417,10 +420,6 @@ class PdfViewerActivity : AppCompatActivity() {
                     init()
                 }
             }.setNegativeButton(pdf_viewer_cancel, null).show()
-    }
-
-    private fun Boolean.showProgressBar() {
-        binding.progressBar.visibility = if (this) VISIBLE else GONE
     }
 
     private val requestPermissionLauncher = registerForActivityResult(
@@ -534,8 +533,8 @@ class PdfViewerActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        findViewById<PdfRendererView>(R.id.pdfView).closePdfRender()
         super.onDestroy()
-        binding.pdfView.closePdfRender()
     }
 
     private fun updateDownloadButtonState(isEnabled: Boolean) {
@@ -546,5 +545,4 @@ class PdfViewerActivity : AppCompatActivity() {
             item.icon?.alpha = if (isEnabled) 255 else 100 // Adjust opacity for disabled state
         }
     }
-
 }

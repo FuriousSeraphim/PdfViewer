@@ -2,22 +2,23 @@ package com.rajat.pdfviewer.util
 
 import android.content.Context
 import android.util.Log
+import android.view.View
+import android.widget.ProgressBar
 import androidx.core.content.ContextCompat
 import com.rajat.pdfviewer.R
-import com.rajat.pdfviewer.databinding.ActivityPdfViewerBinding
 
 /**
  * Handles general view styling like background & progress bar
  */
 data class ViewerStyle(
     val backgroundColor: Int,
-    val progressBarDrawableResId: Int
+    val progressBarDrawableResId: Int,
 ) {
-    fun applyTo(binding: ActivityPdfViewerBinding) {
+    fun applyTo(parentLayout: View, progressBar: ProgressBar) {
         try {
-            binding.parentLayout.setBackgroundColor(backgroundColor)
-            binding.progressBar.indeterminateDrawable = ContextCompat.getDrawable(
-                binding.root.context, progressBarDrawableResId
+            parentLayout.setBackgroundColor(backgroundColor)
+            progressBar.indeterminateDrawable = ContextCompat.getDrawable(
+                progressBar.context, progressBarDrawableResId
             )
         } catch (e: Exception) {
             Log.w("ViewerStyle", "Failed to apply style: ${e.localizedMessage}")

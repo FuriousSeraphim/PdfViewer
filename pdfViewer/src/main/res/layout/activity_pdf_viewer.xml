@@ -3,13 +3,13 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="match_parent"
     android:id="@+id/parentLayout"
+    android:layout_width="match_parent"
     android:layout_height="match_parent"
     tools:context=".PdfViewerActivity">
 
     <com.google.android.material.appbar.MaterialToolbar
-        android:id="@+id/my_toolbar"
+        android:id="@+id/toolbar"
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
         android:background="?attr/colorPrimary"
@@ -20,10 +20,10 @@
 
         <!-- Custom TextView for Multi-Line Title -->
         <TextView
-            android:id="@+id/toolbar_title"
+            android:id="@+id/toolbarTitle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical"/>
+            android:gravity="center_vertical" />
     </com.google.android.material.appbar.MaterialToolbar>
 
 
@@ -32,18 +32,18 @@
         android:id="@+id/mainLayout"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        app:layout_constraintTop_toBottomOf="@id/my_toolbar"
-        app:layout_constraintBottom_toBottomOf="parent">
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/toolbar">
 
         <!-- Centered ProgressBar -->
         <ProgressBar
             android:id="@+id/progressBar"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:visibility="gone"
             android:layout_gravity="center"
             android:indeterminateDrawable="@drawable/pdf_viewer_progress_circle"
-            android:interpolator="@android:anim/accelerate_decelerate_interpolator"/>
+            android:interpolator="@android:anim/accelerate_decelerate_interpolator"
+            android:visibility="gone" />
 
         <!-- PDF Viewer -->
         <com.rajat.pdfviewer.PdfRendererView
@@ -51,7 +51,7 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             app:pdfView_divider="@drawable/pdf_viewer_divider"
-            app:pdfView_showDivider="false"/>
+            app:pdfView_showDivider="false" />
 
     </FrameLayout>
 

@@ -215,8 +215,7 @@ class PdfRendererView @JvmOverloads constructor(
         pdfRendererCoreInitialised = true
 
         // Inflate layout first — ensures RecyclerView references are valid
-        val v = LayoutInflater.from(context).inflate(R.layout.pdf_rendererview, this, false)
-        addView(v)
+        addView(LayoutInflater.from(this.context).inflate(R.layout.pdf_renderer_view, this, false))
 
         // Now that layout is added, find RecyclerView and other views
         recyclerView = findViewById(R.id.recyclerView)
