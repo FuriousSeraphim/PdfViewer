@@ -25,11 +25,13 @@ class PinchZoomRecyclerView @JvmOverloads constructor(
     private val gestureDetector = GestureDetector(context, GestureListener())
 
     // Zoom and pan state
+    private var renderQuality = RenderQuality.NORMAL
     private var scaleFactor = 1f
     private var isZoomEnabled = true
-    private var maxZoom = MAX_ZOOM
+    private val maxZoom get() = MAX_ZOOM * renderQuality.qualityMultiplier
     private var zoomDuration = ZOOM_DURATION
     private var isZoomingInProgress = false
+    private var isOnTop = true
 
     // Panning offsets and touch memory
     private var lastTouchX = 0f
@@ -38,6 +40,7 @@ class PinchZoomRecyclerView @JvmOverloads constructor(
     private var posY = 0f
 
     private var zoomChangeListener: ((Boolean, Float) -> Unit)? = null
+    private var scrollListener: ((Boolean) -> Unit)? = null
 
     private var anchorScale = 1f
     private var anchorFocusY = 0f
@@ -61,6 +64,14 @@ class PinchZoomRecyclerView @JvmOverloads constructor(
         zoomChangeListener = listener
     }
 
+    fun setScrollListener(listener: (isScrolledToTop: Boolean) -> Unit) {
+        scrollListener = listener
+    }
+
+    fun setRenderQuality(quality: RenderQuality) {
+        renderQuality = quality
+    }
+
     /**
      * Handles touch interactions — zoom, pan, and scroll.
      */
@@ -77,44 +88,10 @@ class PinchZoomRecyclerView @JvmOverloads constructor(
         val superHandled = super.onTouchEvent(ev)
 
         when (ev.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                lastTouchX = ev.x
-                lastTouchY = ev.y
-                activePointerId = ev.getPointerId(0)
-            }
-
-            MotionEvent.ACTION_MOVE -> {
-                if (!scaleDetector.isInProgress && scaleFactor > 1f) {
-                    val pointerIndex = ev.findPointerIndex(activePointerId)
-                    if (pointerIndex != -1) {
-                        val x = ev.getX(pointerIndex)
-                        val y = ev.getY(pointerIndex)
-                        val dx = x - lastTouchX
-                        posX += dx
-//                        posY += dy
-                        clampPosition()
-                        invalidate()
-
-                        lastTouchX = x
-                        lastTouchY = y
-                    }
-                }
-            }
-
-            MotionEvent.ACTION_POINTER_UP -> {
-                val pointerIndex = ev.actionIndex
-                val pointerId = ev.getPointerId(pointerIndex)
-                if (pointerId == activePointerId) {
-                    val newPointerIndex = if (pointerIndex == 0) 1 else 0
-                    lastTouchX = ev.getX(newPointerIndex)
-                    lastTouchY = ev.getY(newPointerIndex)
-                    activePointerId = ev.getPointerId(newPointerIndex)
-                }
-            }
-
-            MotionEvent.ACTION_CANCEL -> {
-                activePointerId = INVALID_POINTER_ID
-            }
+            MotionEvent.ACTION_DOWN -> onDown(ev = ev)
+            MotionEvent.ACTION_MOVE -> onMove(ev = ev)
+            MotionEvent.ACTION_POINTER_UP -> onUp(ev = ev)
+            MotionEvent.ACTION_CANCEL -> onCancel(ev = ev)
         }
 
         return superHandled || scaleFactor > 1f
@@ -181,6 +158,56 @@ class PinchZoomRecyclerView @JvmOverloads constructor(
         return (averageHeight * itemCount * scaleFactor).toInt()
     }
 
+    private fun onDown(ev: MotionEvent) {
+        lastTouchX = ev.x
+        lastTouchY = ev.y
+        activePointerId = ev.getPointerId(0)
+    }
+
+    private fun onMove(ev: MotionEvent) {
+        val pointerIndex = ev.findPointerIndex(activePointerId)
+        if (pointerIndex != -1) {
+            if (!scaleDetector.isInProgress && scaleFactor > 1f) {
+                val x = ev.getX(pointerIndex)
+                val y = ev.getY(pointerIndex)
+                val dx = x - lastTouchX
+                val dy = y - lastTouchY
+                posX += dx
+                posY += dy
+                clampPosition()
+                invalidate()
+
+                lastTouchX = x
+                lastTouchY = y
+            }
+
+            val isScrolledOut = !scaleDetector.isInProgress && scaleFactor == 1f
+            val currentScrollOffset = computeVerticalScrollOffset()
+            if (currentScrollOffset == 0 && isScrolledOut && !isOnTop) {
+                scrollListener?.invoke(true)
+                isOnTop = true
+            } else if ((currentScrollOffset != 0 || isScrolledOut.not()) && isOnTop) {
+                scrollListener?.invoke(false)
+                isOnTop = false
+            }
+        }
+    }
+
+    private fun onUp(ev: MotionEvent) {
+        val pointerIndex = ev.actionIndex
+        val pointerId = ev.getPointerId(pointerIndex)
+        if (pointerId == activePointerId) {
+            val newPointerIndex = if (pointerIndex == 0) 1 else 0
+            lastTouchX = ev.getX(newPointerIndex)
+            lastTouchY = ev.getY(newPointerIndex)
+            activePointerId = ev.getPointerId(newPointerIndex)
+        }
+    }
+
+    private fun onCancel(ev: MotionEvent) {
+        activePointerId = INVALID_POINTER_ID
+    }
+
     /**
      * Handles pinch-to-zoom scaling with focal-point centering.
      */
@@ -189,6 +216,8 @@ class PinchZoomRecyclerView @JvmOverloads constructor(
             isZoomingInProgress = true
             suppressLayout(true)
 
+            scrollListener?.invoke(false)
+            isOnTop = false
 
             // 1️⃣ record the old scale & where on screen they touched
             anchorScale  = scaleFactor
