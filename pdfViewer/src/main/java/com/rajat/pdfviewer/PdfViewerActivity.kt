@@ -22,7 +22,6 @@ import android.widget.Toast
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.DrawableCompat
@@ -40,7 +39,7 @@ import com.rajat.pdfviewer.util.ToolbarTitleBehavior
 import com.rajat.pdfviewer.util.ViewerStrings
 import com.rajat.pdfviewer.util.ViewerStrings.Companion.getMessageForError
 import com.rajat.pdfviewer.util.ViewerStyle
-import com.rajat.pdfviewer.util.saveTo
+import com.rajat.pdfviewer.util.SaveTo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -70,7 +69,6 @@ class PdfViewerActivity : AppCompatActivity() {
     private var fileUrl: String? = null
     private lateinit var headers: HeaderData
     private lateinit var binding: ActivityPdfViewerBinding
-    private val viewModel: PdfViewerViewModel by viewModels()
     var downloadedFilePath: String? = null
     private var isDownloadButtonEnabled = false
     private lateinit var cacheStrategy: CacheStrategy
@@ -93,7 +91,7 @@ class PdfViewerActivity : AppCompatActivity() {
             context: Context?,
             pdfUrl: String?,
             pdfTitle: String?,
-            saveTo: saveTo,
+            saveTo: SaveTo,
             enableDownload: Boolean = true,
             enableZoom: Boolean = true,
             headers: Map<String, String> = emptyMap(),
@@ -111,7 +109,7 @@ class PdfViewerActivity : AppCompatActivity() {
             }
             intent.putExtra(CACHE_STRATEGY, cacheStrategy.ordinal)
             isPDFFromPath = false
-            SAVE_TO_DOWNLOADS = saveTo == com.rajat.pdfviewer.util.saveTo.DOWNLOADS
+            SAVE_TO_DOWNLOADS = saveTo == SaveTo.DOWNLOADS
             return intent
         }
 
@@ -119,7 +117,7 @@ class PdfViewerActivity : AppCompatActivity() {
             context: Context?,
             path: String?,
             pdfTitle: String?,
-            saveTo: saveTo,
+            saveTo: SaveTo,
             fromAssets: Boolean = false,
             enableZoom: Boolean = true,
             toolbarTitleBehavior: ToolbarTitleBehavior? = null,
@@ -136,7 +134,7 @@ class PdfViewerActivity : AppCompatActivity() {
             intent.putExtra(ENABLE_ZOOM, enableZoom)
             intent.putExtra(CACHE_STRATEGY, cacheStrategy.ordinal)
             isPDFFromPath = true
-            SAVE_TO_DOWNLOADS = saveTo == com.rajat.pdfviewer.util.saveTo.DOWNLOADS
+            SAVE_TO_DOWNLOADS = saveTo == SaveTo.DOWNLOADS
             return intent
         }
     }

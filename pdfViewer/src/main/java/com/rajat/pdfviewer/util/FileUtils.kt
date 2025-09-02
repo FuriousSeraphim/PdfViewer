@@ -62,7 +62,6 @@ object FileUtils {
                 ?: throw IOException("Failed to create new MediaStore record.")
         }
 
-
     fun getCachedFileName(url: String): String {
         return CacheHelper.getCacheKey(url) + ".pdf"
     }

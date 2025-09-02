@@ -14,7 +14,7 @@ import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.LargeTest
-import com.rajat.pdfviewer.util.saveTo
+import com.rajat.pdfviewer.util.SaveTo
 import junit.framework.TestCase.assertEquals
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertTrue
@@ -57,7 +57,7 @@ class PdfViewerInstrumentedTest : BasePdfViewerTest() {
     @Test
     fun test_error_dialog_shown_for_invalid_path() {
         val intent = PdfViewerActivity.launchPdfFromPath(
-            context, "/invalid/path/file.pdf", "Invalid PDF", saveTo.DOWNLOADS
+            context, "/invalid/path/file.pdf", "Invalid PDF", SaveTo.DOWNLOADS
         )
 
         ActivityScenario.launch<PdfViewerActivity>(intent).use {
@@ -99,7 +99,7 @@ class PdfViewerInstrumentedTest : BasePdfViewerTest() {
             context = context,
             pdfUrl = sampleUrl,
             pdfTitle = customTitle,
-            saveTo = saveTo.DOWNLOADS
+            saveTo = SaveTo.DOWNLOADS
         )
 
         ActivityScenario.launch<PdfViewerActivity>(intent).use {
@@ -208,7 +208,7 @@ class PdfViewerInstrumentedTest : BasePdfViewerTest() {
             context = context,
             pdfUrl = "https://invalid.example.com/fail.pdf",
             pdfTitle = "Retry Test",
-            saveTo = saveTo.DOWNLOADS
+            saveTo = SaveTo.DOWNLOADS
         )
 
         ActivityScenario.launch<PdfViewerActivity>(badIntent).use {

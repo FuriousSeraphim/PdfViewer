@@ -12,7 +12,7 @@ import android.view.animation.AlphaAnimation
 import android.view.animation.LinearInterpolator
 import androidx.recyclerview.widget.RecyclerView
 import com.rajat.pdfviewer.databinding.ListItemPdfPageBinding
-import com.rajat.pdfviewer.util.CommonUtils
+import com.rajat.pdfviewer.util.BitmapPool
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.Runnable
@@ -97,7 +97,7 @@ internal class PdfViewAdapter(
         }
 
         private fun renderAndApplyBitmap(page: Int, width: Int, height: Int) {
-            val bitmap = CommonUtils.Companion.BitmapPool.getBitmap(width, maxOf(1, height))
+            val bitmap = BitmapPool.getBitmap(width, maxOf(1, height))
 
             renderer.renderPage(page, bitmap) { success, pageNo, rendered ->
                 scope.launch {
@@ -119,7 +119,7 @@ internal class PdfViewAdapter(
                         )
                     } else {
                         if (DEBUG_LOGS_ENABLED) Log.w("PdfViewAdapter", "🚫 Skipping render for page $pageNo — ViewHolder now bound to $currentBoundPage")
-                        CommonUtils.Companion.BitmapPool.recycleBitmap(bitmap)
+                        BitmapPool.recycleBitmap(bitmap)
                         retryRenderOnce(page, width, height)
                     }
                 }
@@ -127,7 +127,7 @@ internal class PdfViewAdapter(
         }
 
         private fun retryRenderOnce(page: Int, width: Int, height: Int) {
-            val retryBitmap = CommonUtils.Companion.BitmapPool.getBitmap(width, height)
+            val retryBitmap = BitmapPool.getBitmap(width, height)
             renderer.renderPage(page, retryBitmap) { success, retryPageNo, rendered ->
                 scope.launch {
                     if (success && retryPageNo == currentBoundPage && !hasRealBitmap) {
@@ -137,7 +137,7 @@ internal class PdfViewAdapter(
                         applyFadeInAnimation(itemBinding.pageView)
                         itemBinding.pageLoadingLayout.pdfViewPageLoadingProgress.visibility = View.GONE
                     } else {
-                        CommonUtils.Companion.BitmapPool.recycleBitmap(retryBitmap)
+                        BitmapPool.recycleBitmap(retryBitmap)
                     }
                 }
             }

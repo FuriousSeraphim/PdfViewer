@@ -27,7 +27,7 @@ class PdfDownloader(
     private val url: String,
     private val cacheStrategy: CacheStrategy,
     private val listener: StatusListener,
-    private val httpClient: OkHttpClient = defaultHttpClient()
+    private val httpClient: OkHttpClient = defaultHttpClient(),
 ) {
 
     interface StatusListener {
@@ -41,7 +41,11 @@ class PdfDownloader(
     fun start() {
         coroutineScope.launch(Dispatchers.IO) {
             // Validate URL scheme before proceeding
-            if (!url.startsWith("http://", ignoreCase = true) && !url.startsWith("https://", ignoreCase = true)) {
+            if (!url.startsWith("http://", ignoreCase = true) && !url.startsWith(
+                    "https://",
+                    ignoreCase = true
+                )
+            ) {
                 withContext(Dispatchers.Main) {
                     listener.onDownloadError(
                         IllegalArgumentException("Invalid URL scheme: $url. Expected HTTP or HTTPS.")
@@ -68,7 +72,7 @@ class PdfDownloader(
     private suspend fun checkAndDownload(downloadUrl: String) {
         val cachedFileName = getCachedFileName(downloadUrl)
 
-        if (cacheStrategy != CacheStrategy.DISABLE_CACHE){
+        if (cacheStrategy != CacheStrategy.DISABLE_CACHE) {
             CacheManager.clearCacheDir(listener.getContext())
         }
 
@@ -128,7 +132,7 @@ class PdfDownloader(
     private fun isInvalidFileError(error: IOException): Boolean {
         val message = error.message ?: return false
         return message.contains("Invalid content type", ignoreCase = true) ||
-                message.contains("Downloaded file is not a valid PDF", ignoreCase = true)
+               message.contains("Downloaded file is not a valid PDF", ignoreCase = true)
     }
 
     private suspend fun downloadFile(downloadUrl: String, pdfFile: File) =
@@ -198,7 +202,6 @@ class PdfDownloader(
     }
 }
 
-class DownloadFailedException(message: String, cause: Throwable? = null) :
-    IOException(message, cause)
+internal class DownloadFailedException(message: String, cause: Throwable? = null): IOException(message, cause)
 
-class InvalidPdfException(message: String) : IOException(message)
+internal class InvalidPdfException(message: String): IOException(message)

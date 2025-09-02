@@ -12,7 +12,7 @@ import com.rajat.pdfviewer.PdfRendererView
 import com.rajat.pdfviewer.PdfViewerActivity
 import com.rajat.pdfviewer.util.CacheStrategy
 import com.rajat.pdfviewer.util.ToolbarTitleBehavior
-import com.rajat.pdfviewer.util.saveTo
+import com.rajat.pdfviewer.util.SaveTo
 import com.rajat.sample.pdfviewer.databinding.ActivityMainBinding
 
 class MainActivity : AppCompatActivity() {
@@ -130,7 +130,7 @@ class MainActivity : AppCompatActivity() {
                 context = this,
                 pdfUrl = largePdf1,
                 pdfTitle = "PDF Title",
-                saveTo = saveTo.DOWNLOADS,
+                saveTo = SaveTo.DOWNLOADS,
                 enableDownload = true,
                 toolbarTitleBehavior = ToolbarTitleBehavior.SINGLE_LINE_SCROLLABLE,
                 cacheStrategy = CacheStrategy.MAXIMIZE_PERFORMANCE
@@ -169,7 +169,7 @@ class MainActivity : AppCompatActivity() {
                 context = this,
                 path = uri,
                 pdfTitle = "Title",
-                saveTo = saveTo.ASK_EVERYTIME,
+                saveTo = SaveTo.ASK_EVERYTIME,
                 fromAssets = false
             )
         )
@@ -184,7 +184,7 @@ class MainActivity : AppCompatActivity() {
                 context = this,
                 path = uri,
                 pdfTitle = "Title",
-                saveTo = saveTo.ASK_EVERYTIME,
+                saveTo = SaveTo.ASK_EVERYTIME,
                 fromAssets = true
             )
         )

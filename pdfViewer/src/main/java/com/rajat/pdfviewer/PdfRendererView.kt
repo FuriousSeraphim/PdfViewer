@@ -450,17 +450,16 @@ class PdfRendererView @JvmOverloads constructor(
     }
 
     override fun onRestoreInstanceState(state: Parcelable?) {
-        var savedState = state
-        if (savedState is Bundle) {
+        if (state is Bundle) {
             val superState = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                savedState.getParcelable("superState", Parcelable::class.java)
+                state.getParcelable("superState", Parcelable::class.java)
             } else {
-                savedState.getParcelable("superState")
+                state.getParcelable("superState")
             }
             super.onRestoreInstanceState(superState)
-            restoredScrollPosition = savedState.getInt("scrollPosition", positionToUseForState)
+            restoredScrollPosition = state.getInt("scrollPosition", positionToUseForState)
         } else {
-            super.onRestoreInstanceState(savedState)
+            super.onRestoreInstanceState(state)
         }
     }
 

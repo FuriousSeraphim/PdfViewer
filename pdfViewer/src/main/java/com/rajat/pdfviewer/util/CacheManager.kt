@@ -6,7 +6,6 @@ import android.graphics.BitmapFactory
 import android.util.Log
 import android.util.LruCache
 import com.rajat.pdfviewer.util.CacheHelper.handleCacheStrategy
-import com.rajat.pdfviewer.util.CommonUtils.Companion.MAX_CACHED_PDFS
 import com.rajat.pdfviewer.util.FileUtils.cachedFileNameWithFormat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -88,6 +87,7 @@ class CacheManager(
     }
 
     companion object {
+        const val MAX_CACHED_PDFS = 5
         const val CACHE_PATH = "___pdf___cache___"
 
         suspend fun clearCacheDir(context: Context) {

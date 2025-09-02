@@ -48,15 +48,13 @@ object CacheHelper {
         }
     }
 
-
     // **Enforce LRU-based limit but only remove the oldest file if needed**
     private fun enforceCacheLimit(
         origin: String,
         cacheDir: File,
         maxCachedPdfs: Int
     ) {
-        val cachedFolders =
-            cacheDir.parentFile?.listFiles()?.filter { it.isDirectory } ?: return
+        val cachedFolders = cacheDir.parentFile?.listFiles()?.filter { it.isDirectory } ?: return
 
         if (cachedFolders.size >= max(maxCachedPdfs,1)) {
             cachedFolders.minByOrNull { it.lastModified() }?.let {

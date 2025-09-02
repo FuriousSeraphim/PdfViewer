@@ -5,7 +5,7 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Build
 
-object NetworkUtil {
+internal object NetworkUtil {
      fun checkInternetConnection(context: Context): Boolean {
         var result = 0 // Returns connection type. 0: none; 1: mobile data; 2: wifi
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager?

@@ -3,7 +3,7 @@ package com.rajat.pdfviewer
 import android.content.Context
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
-import com.rajat.pdfviewer.util.saveTo
+import com.rajat.pdfviewer.util.SaveTo
 import java.io.File
 
 abstract class BasePdfViewerTest {
@@ -29,7 +29,7 @@ abstract class BasePdfViewerTest {
             context = context,
             pdfUrl = url,
             pdfTitle = title,
-            saveTo = saveTo.DOWNLOADS,
+            saveTo = SaveTo.DOWNLOADS,
             enableDownload = enableDownload
         )
         return ActivityScenario.launch(intent)
@@ -45,7 +45,7 @@ abstract class BasePdfViewerTest {
             context = context,
             path = file.absolutePath,
             pdfTitle = title,
-            saveTo = saveTo.DOWNLOADS,
+            saveTo = SaveTo.DOWNLOADS,
             fromAssets = false,
             enableZoom = enableZoom
         )

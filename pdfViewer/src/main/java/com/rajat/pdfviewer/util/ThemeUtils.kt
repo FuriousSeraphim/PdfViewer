@@ -8,7 +8,7 @@ import androidx.annotation.ColorRes
 import androidx.annotation.StyleRes
 import androidx.core.content.ContextCompat
 
-object ThemeUtils {
+internal object ThemeUtils {
 
     fun getColorFromAttr(
         context: Context,

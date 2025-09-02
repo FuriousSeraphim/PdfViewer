@@ -7,9 +7,9 @@ import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.util.Log
 import android.util.Size
+import com.rajat.pdfviewer.util.BitmapPool
 import com.rajat.pdfviewer.util.CacheManager
 import com.rajat.pdfviewer.util.CacheStrategy
-import com.rajat.pdfviewer.util.CommonUtils
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -145,11 +145,11 @@ class PdfRendererCore private constructor(
 
     suspend fun renderPageAsync(pageNo: Int, width: Int, height: Int): Bitmap? =
         suspendCancellableCoroutine { continuation ->
-            val bitmap = CommonUtils.Companion.BitmapPool.getBitmap(width, height)
+            val bitmap = BitmapPool.getBitmap(width, height)
             renderPage(pageNo, bitmap) { success, _, renderedBitmap ->
                 if (success) continuation.resume(renderedBitmap ?: bitmap, null)
                 else {
-                    CommonUtils.Companion.BitmapPool.recycleBitmap(bitmap)
+                    BitmapPool.recycleBitmap(bitmap)
                     continuation.resume(null, null)
                 }
             }
@@ -197,9 +197,9 @@ class PdfRendererCore private constructor(
                     val aspectRatio = size.width.toFloat() / size.height.toFloat()
                     val height = (fallbackWidth / aspectRatio).toInt()
 
-                    val bitmap = CommonUtils.Companion.BitmapPool.getBitmap(fallbackWidth, maxOf(1, height))
+                    val bitmap = BitmapPool.getBitmap(fallbackWidth, maxOf(1, height))
                     renderPage(pageNo, bitmap) { success, _, _ ->
-                        if (!success) CommonUtils.Companion.BitmapPool.recycleBitmap(bitmap)
+                        if (!success) BitmapPool.recycleBitmap(bitmap)
                     }
                 }
             }

@@ -7,15 +7,14 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.view.updatePadding
 
-object EdgeToEdgeHelper {
-
+internal object EdgeToEdgeHelper {
     fun applyInsets(
         window: Window,
         rootView: View,
         darkMode: Boolean,
         onInsetsApplied: ((WindowInsetsCompat) -> Unit)? = null
     ) {
-        val controller = WindowInsetsControllerCompat(window, rootView).apply {
+        WindowInsetsControllerCompat(window, rootView).apply {
             isAppearanceLightStatusBars = !darkMode
             isAppearanceLightNavigationBars = !darkMode
         }
