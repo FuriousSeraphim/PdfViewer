@@ -10,7 +10,7 @@
         android:id="@+id/pageView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:contentDescription="@string/content_des"
+        android:contentDescription="@string/pdf_page_content_description"
         android:minHeight="200dp"
         android:scaleType="fitCenter" />
 

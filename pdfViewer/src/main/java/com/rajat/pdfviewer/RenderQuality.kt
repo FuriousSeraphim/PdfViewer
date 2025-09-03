@@ -1,7 +1,9 @@
 package com.rajat.pdfviewer
 
-enum class RenderQuality(val qualityMultiplier: Float) {
-    NORMAL(qualityMultiplier = 1f),
-    HIGH(qualityMultiplier = 2f),
-    ULTRA(qualityMultiplier = 3f)
+class RenderQuality(val multiplier: Float) {
+    companion object {
+        val NORMAL = RenderQuality(1f)
+        val HIGH = RenderQuality(2f)
+        val ULTRA = RenderQuality(3f)
+    }
 }

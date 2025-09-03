@@ -13,11 +13,11 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import kotlin.math.roundToInt
 
-class PinchZoomRecyclerView @JvmOverloads constructor(
+internal class PinchZoomRecyclerView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
-    defStyleAttr: Int = 0
-) : RecyclerView(context, attrs, defStyleAttr) {
+    defStyleAttr: Int = 0,
+): RecyclerView(context, attrs, defStyleAttr) {
 
     // Touch tracking for gesture state
     private var activePointerId = INVALID_POINTER_ID
@@ -25,10 +25,10 @@ class PinchZoomRecyclerView @JvmOverloads constructor(
     private val gestureDetector = GestureDetector(context, GestureListener())
 
     // Zoom and pan state
-    private var renderQuality = RenderQuality.NORMAL
+    var renderQuality = RenderQuality.NORMAL
     private var scaleFactor = 1f
-    private var isZoomEnabled = true
-    private val maxZoom get() = MAX_ZOOM * renderQuality.qualityMultiplier
+    var isZoomEnabled = true
+    private val maxZoom get() = MAX_ZOOM * renderQuality.multiplier
     private var zoomDuration = ZOOM_DURATION
     private var isZoomingInProgress = false
     private var isOnTop = true
@@ -39,8 +39,8 @@ class PinchZoomRecyclerView @JvmOverloads constructor(
     private var posX = 0f
     private var posY = 0f
 
-    private var zoomChangeListener: ((Boolean, Float) -> Unit)? = null
-    private var scrollListener: ((Boolean) -> Unit)? = null
+    var zoomChangeListener: ((Boolean, Float) -> Unit)? = null
+    var scrolledToTopListener: ((Boolean) -> Unit)? = null
 
     private var anchorScale = 1f
     private var anchorFocusY = 0f
@@ -52,25 +52,9 @@ class PinchZoomRecyclerView @JvmOverloads constructor(
         layoutManager = ZoomableLinearLayoutManager(context) { getZoomScale() }
     }
 
-    fun setZoomEnabled(enabled: Boolean) {
-        isZoomEnabled = enabled
-    }
-
     fun isZoomedIn(): Boolean = scaleFactor > 1f
 
     fun getZoomScale(): Float = scaleFactor
-
-    fun setOnZoomChangeListener(listener: (isZoomedIn: Boolean, scale: Float) -> Unit) {
-        zoomChangeListener = listener
-    }
-
-    fun setScrollListener(listener: (isScrolledToTop: Boolean) -> Unit) {
-        scrollListener = listener
-    }
-
-    fun setRenderQuality(quality: RenderQuality) {
-        renderQuality = quality
-    }
 
     /**
      * Handles touch interactions — zoom, pan, and scroll.
@@ -184,10 +168,10 @@ class PinchZoomRecyclerView @JvmOverloads constructor(
             val isScrolledOut = !scaleDetector.isInProgress && scaleFactor == 1f
             val currentScrollOffset = computeVerticalScrollOffset()
             if (currentScrollOffset == 0 && isScrolledOut && !isOnTop) {
-                scrollListener?.invoke(true)
+                scrolledToTopListener?.invoke(true)
                 isOnTop = true
             } else if ((currentScrollOffset != 0 || isScrolledOut.not()) && isOnTop) {
-                scrollListener?.invoke(false)
+                scrolledToTopListener?.invoke(false)
                 isOnTop = false
             }
         }
@@ -211,16 +195,16 @@ class PinchZoomRecyclerView @JvmOverloads constructor(
     /**
      * Handles pinch-to-zoom scaling with focal-point centering.
      */
-    private inner class ScaleListener : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+    private inner class ScaleListener: ScaleGestureDetector.SimpleOnScaleGestureListener() {
         override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
             isZoomingInProgress = true
             suppressLayout(true)
 
-            scrollListener?.invoke(false)
+            scrolledToTopListener?.invoke(false)
             isOnTop = false
 
             // 1️⃣ record the old scale & where on screen they touched
-            anchorScale  = scaleFactor
+            anchorScale = scaleFactor
             anchorFocusY = detector.focusY
 
             // 2️⃣ convert current scroll into UN‑SCALED content‑pixels
@@ -288,8 +272,6 @@ class PinchZoomRecyclerView @JvmOverloads constructor(
                 invalidate()
             }
         }
-
-
     }
 
     override fun fling(velocityX: Int, velocityY: Int): Boolean {
@@ -300,7 +282,6 @@ class PinchZoomRecyclerView @JvmOverloads constructor(
             super.fling(velocityX, velocityY)
         }
     }
-
 
     /**
      * Clamps the panning translation to avoid over-scrolling beyond the content bounds.
@@ -315,11 +296,10 @@ class PinchZoomRecyclerView @JvmOverloads constructor(
         posY = posY.coerceIn(-(contentHeight - height).coerceAtLeast(0f), 0f)
     }
 
-
     /**
      * GestureListener handles double-tap zoom.
      */
-    private inner class GestureListener : GestureDetector.SimpleOnGestureListener() {
+    private inner class GestureListener: GestureDetector.SimpleOnGestureListener() {
         override fun onDoubleTap(e: MotionEvent): Boolean {
             if (!isZoomEnabled) return false
 

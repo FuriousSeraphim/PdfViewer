@@ -1,6 +1,5 @@
 package com.rajat.pdfviewer
 
-import android.app.Activity
 import android.content.Context
 import android.content.res.TypedArray
 import android.graphics.Bitmap
@@ -12,12 +11,8 @@ import android.os.Bundle
 import android.os.Parcelable
 import android.util.AttributeSet
 import android.view.LayoutInflater
-import android.view.WindowManager
 import android.widget.FrameLayout
-import android.widget.TextView
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleCoroutineScope
-import androidx.lifecycle.LifecycleObserver
+import androidx.core.view.postDelayed
 import androidx.recyclerview.widget.DefaultItemAnimator
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -25,12 +20,14 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.RecyclerView.NO_POSITION
 import com.rajat.pdfviewer.util.CacheManager
 import com.rajat.pdfviewer.util.CacheStrategy
+import com.rajat.pdfviewer.util.FileUtils
+import com.rajat.pdfviewer.util.validPositionOr
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.jetbrains.annotations.TestOnly
 import java.io.File
 
 /**
@@ -38,8 +35,8 @@ import java.io.File
  */
 
 class PdfRendererView @JvmOverloads constructor(
-    context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
-) : FrameLayout(context, attrs, defStyleAttr), LifecycleObserver {
+    context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0,
+): FrameLayout(context, attrs, defStyleAttr) {
 
     // region Core rendering
     private lateinit var pdfRendererCore: PdfRendererCore
@@ -49,8 +46,7 @@ class PdfRendererView @JvmOverloads constructor(
     // endregion
 
     // region UI
-    lateinit var recyclerView: PinchZoomRecyclerView
-    private lateinit var pageNo: TextView
+    private lateinit var recyclerView: PinchZoomRecyclerView
     private var divider: Drawable? = null
     private var pageMargin: Rect = Rect(0, 0, 0, 0)
     // endregion
@@ -59,19 +55,23 @@ class PdfRendererView @JvmOverloads constructor(
     private var positionToUseForState: Int = NO_POSITION
     private var restoredScrollPosition: Int = NO_POSITION
     private var lastDy: Int = 0
-    private var pendingJumpPage: Int? = null
+    private var pendingJumpPage: Int = NO_POSITION
     // endregion
 
     // region Flags
     private var showDivider = true
-    private var isZoomEnabled = true
+    var isZoomEnabled = true
+        set(value) {
+            field = value
+            if (::recyclerView.isInitialized) {
+                recyclerView.isZoomEnabled = value
+            }
+        }
     private var enableLoadingForPages = false
-    private var disableScreenshots = false
     // endregion
 
     // region Lifecycle + Async
-    private var postInitializationAction: (() -> Unit)? = null
-    private var viewJob = SupervisorJob()
+    private val viewJob = SupervisorJob()
     private val viewScope = CoroutineScope(viewJob + Dispatchers.IO)
     // endregion
 
@@ -79,8 +79,17 @@ class PdfRendererView @JvmOverloads constructor(
     var scrollListener: ScrollListener? = null
     var statusListener: StatusCallBack? = null
     var renderQuality: RenderQuality = RenderQuality.NORMAL
+        set(value) {
+            field = value
+            if (::pdfViewAdapter.isInitialized) {
+                pdfViewAdapter.renderQuality = value
+            }
+            if (::recyclerView.isInitialized) {
+                recyclerView.renderQuality = value
+            }
+        }
 
-    //region Public APIs
+    // region Public APIs
     fun isZoomedIn(): Boolean = this::recyclerView.isInitialized && recyclerView.isZoomedIn()
     fun getZoomScale(): Float = if (this::recyclerView.isInitialized) recyclerView.getZoomScale() else 1f
 
@@ -96,7 +105,7 @@ class PdfRendererView @JvmOverloads constructor(
     suspend fun PdfRendererView.clearCache(context: Context) {
         CacheManager.clearCacheDir(context)
     }
-    //endregion
+    // endregion
 
     init {
         getAttrs(attrs, defStyleAttr)
@@ -107,21 +116,19 @@ class PdfRendererView @JvmOverloads constructor(
      *
      * @param url The URL of the PDF file.
      * @param headers Optional HTTP headers.
-     * @param lifecycleCoroutineScope Scope for managing coroutines.
+     * @param coroutineScope Scope for managing coroutines.
      * @param lifecycle Lifecycle to observe for cleanup.
      * @param cacheStrategy Cache strategy to apply.
      */
     fun initWithUrl(
         url: String,
         headers: HeaderData = HeaderData(),
-        lifecycleCoroutineScope: LifecycleCoroutineScope,
-        lifecycle: Lifecycle,
-        cacheStrategy: CacheStrategy = CacheStrategy.MAXIMIZE_PERFORMANCE
+        coroutineScope: CoroutineScope,
+        cacheStrategy: CacheStrategy = CacheStrategy.MAXIMIZE_PERFORMANCE,
     ) {
-        lifecycle.addObserver(this) // Register as LifecycleObserver
         this.cacheStrategy = cacheStrategy
         PdfDownloader(
-            lifecycleCoroutineScope,
+            coroutineScope,
             headers,
             url,
             cacheStrategy,
@@ -140,7 +147,8 @@ class PdfRendererView @JvmOverloads constructor(
                     }
                 },
                 onError = { statusListener?.onError(it) }
-            )).start()
+            )
+        ).start()
     }
 
     /**
@@ -172,6 +180,18 @@ class PdfRendererView @JvmOverloads constructor(
         }
     }
 
+    fun initWithAsset(
+        assetFileName: String,
+        cacheStrategy: CacheStrategy = CacheStrategy.MAXIMIZE_PERFORMANCE,
+    ) {
+        viewScope.launch {
+            val file = FileUtils.fileFromAsset(context, assetFileName)
+            withContext(Dispatchers.Main) {
+                initWithFile(file, cacheStrategy)
+            }
+        }
+    }
+
     /**
      * Initializes the PDF view with a content [Uri]. Useful for opening from storage provider.
      *
@@ -184,10 +204,8 @@ class PdfRendererView @JvmOverloads constructor(
 
         viewScope.launch {
             try {
-                val fileDescriptor =
-                    context.contentResolver.openFileDescriptor(uri, "r") ?: return@launch
-                val renderer =
-                    PdfRendererCore.create(context, fileDescriptor, cacheIdentifier, cacheStrategy)
+                val fileDescriptor = context.contentResolver.openFileDescriptor(uri, "r") ?: return@launch
+                val renderer = PdfRendererCore.create(context, fileDescriptor, cacheIdentifier, cacheStrategy)
                 withContext(Dispatchers.Main) {
                     initializeRenderer(renderer)
                     statusListener?.onPdfLoadSuccess("uri:$uri")
@@ -203,14 +221,13 @@ class PdfRendererView @JvmOverloads constructor(
     private fun initializeRenderer(renderer: PdfRendererCore) {
         // If re-initializing, clear old views & adapter
         if (pdfRendererCoreInitialised) {
-            viewJob.cancel()
+            viewJob.cancelChildren()
             removeAllViews()
             if (this::recyclerView.isInitialized) {
                 recyclerView.adapter = null
             }
         }
 
-        PdfRendererCore.enableDebugMetrics = true
         pdfRendererCore = renderer
         pdfRendererCoreInitialised = true
 
@@ -219,7 +236,6 @@ class PdfRendererView @JvmOverloads constructor(
 
         // Now that layout is added, find RecyclerView and other views
         recyclerView = findViewById(R.id.recyclerView)
-        pageNo = findViewById(R.id.pageNumber)
 
         // Now it's safe to create the adapter and assign it
         pdfViewAdapter = PdfViewAdapter(
@@ -231,22 +247,19 @@ class PdfRendererView @JvmOverloads constructor(
             renderQuality,
         )
 
-        recyclerView.apply {
-            adapter = pdfViewAdapter
-            itemAnimator = DefaultItemAnimator()
-            if (showDivider) {
-                DividerItemDecoration(context, DividerItemDecoration.VERTICAL).apply {
-                    divider?.let { setDrawable(it) }
-                }.let { addItemDecoration(it) }
+        recyclerView.adapter = pdfViewAdapter
+        recyclerView.itemAnimator = DefaultItemAnimator()
+        recyclerView.isZoomEnabled = isZoomEnabled
+        recyclerView.renderQuality = renderQuality
+        if (showDivider) {
+            val itemDecoration = DividerItemDecoration(context, DividerItemDecoration.VERTICAL)
+            divider?.also {
+                itemDecoration.setDrawable(it)
             }
-            setZoomEnabled(isZoomEnabled)
-            setRenderQuality(renderQuality)
+            recyclerView.addItemDecoration(itemDecoration)
         }
-
         recyclerView.addOnScrollListener(
             PdfPageScrollListener(
-                pageNoTextView = pageNo,
-                totalPageCount = { totalPageCount },
                 updatePage = { updatePageNumberDisplay(it) },
                 schedulePrefetch = { page ->
                     pdfRendererCore.schedulePrefetch(page, recyclerView.width, recyclerView.height, 0)
@@ -254,29 +267,26 @@ class PdfRendererView @JvmOverloads constructor(
             )
         )
 
-        recyclerView.postDelayed({
+        recyclerView.postDelayed(500) {
             if (restoredScrollPosition != NO_POSITION) {
                 recyclerView.scrollToPosition(restoredScrollPosition)
                 restoredScrollPosition = NO_POSITION  // Reset after applying
             }
-        }, 500) // Adjust delay as needed
+        }
 
-        recyclerView.setOnZoomChangeListener { isZoomedIn, scale ->
+        recyclerView.zoomChangeListener = { isZoomedIn, scale ->
             zoomListener?.onZoomChanged(isZoomedIn, scale)
         }
-        recyclerView.setScrollListener { isScrolledToTop ->
+        recyclerView.scrolledToTopListener = { isScrolledToTop ->
             scrollListener?.onScroll(isScrolledToTop)
         }
-
         recyclerView.post {
-            postInitializationAction?.invoke()
             statusListener?.onPdfRenderSuccess()
-            postInitializationAction = null
         }
 
-        pendingJumpPage?.let { page ->
-            jumpToPage(page)
-            pendingJumpPage = null
+        if (pendingJumpPage != NO_POSITION) {
+            jumpToPage(pendingJumpPage)
+            pendingJumpPage = NO_POSITION
         }
 
         // Start preloading cache into memory immediately after setting up adapter and RecyclerView
@@ -297,7 +307,7 @@ class PdfRendererView @JvmOverloads constructor(
             return
         }
 
-        recyclerView.postDelayed({
+        recyclerView.postDelayed(delayMillis) {
             val layoutManager = recyclerView.layoutManager as? LinearLayoutManager ?: return@postDelayed
             val adapter = recyclerView.adapter ?: return@postDelayed
             if (adapter.itemCount == 0) return@postDelayed
@@ -311,32 +321,23 @@ class PdfRendererView @JvmOverloads constructor(
             recyclerView.post {
                 forceUpdatePageNumber()
             }
-        }, delayMillis)
+        }
     }
 
     private fun forceUpdatePageNumber() {
         val layoutManager = recyclerView.layoutManager as LinearLayoutManager
-        val firstVisiblePosition = layoutManager.findFirstVisibleItemPosition()
-        val firstCompletelyVisiblePosition = layoutManager.findFirstCompletelyVisibleItemPosition()
-        val lastVisiblePosition = layoutManager.findLastVisibleItemPosition()
-        val lastCompletelyVisiblePosition = layoutManager.findLastCompletelyVisibleItemPosition()
-        val positionToUse = lastCompletelyVisiblePosition.takeIf { it != NO_POSITION }
-            ?: lastVisiblePosition.takeIf { it != NO_POSITION }
-            ?: firstCompletelyVisiblePosition.takeIf { it != NO_POSITION }
-            ?: firstVisiblePosition
+
+        val positionToUse = layoutManager.findLastCompletelyVisibleItemPosition()
+            .validPositionOr { layoutManager.findLastVisibleItemPosition() }
+            .validPositionOr { layoutManager.findFirstCompletelyVisibleItemPosition() }
+            .validPositionOr { layoutManager.findFirstVisibleItemPosition() }
+
         positionToUseForState = positionToUse
         updatePageNumberDisplay(positionToUse)
     }
 
     private fun updatePageNumberDisplay(position: Int) {
-        if (position != NO_POSITION) {
-            pageNo.text = context.getString(R.string.pdfView_page_no, position + 1, totalPageCount)
-            pageNo.visibility = VISIBLE
-            if (position == 0) {
-                pageNo.postDelayed({ pageNo.visibility = GONE }, 3000)
-            }
-            statusListener?.onPageChanged(position + 1, totalPageCount)
-        }
+        statusListener?.onPageChanged(position, totalPageCount)
     }
 
     private fun getAttrs(attrs: AttributeSet?, defStyle: Int) {
@@ -346,17 +347,14 @@ class PdfRendererView @JvmOverloads constructor(
     }
 
     private fun setTypeArray(typedArray: TypedArray) {
+        renderQuality = RenderQuality(typedArray.getFloat(R.styleable.PdfRendererView_pdfView_quality, 1f))
         showDivider = typedArray.getBoolean(R.styleable.PdfRendererView_pdfView_showDivider, true)
         divider = typedArray.getDrawable(R.styleable.PdfRendererView_pdfView_divider)
-        enableLoadingForPages =
-            typedArray.getBoolean(R.styleable.PdfRendererView_pdfView_enableLoadingForPages, false)
-        disableScreenshots =
-            typedArray.getBoolean(R.styleable.PdfRendererView_pdfView_disableScreenshots, false)
+        enableLoadingForPages = typedArray.getBoolean(R.styleable.PdfRendererView_pdfView_enableLoadingForPages, false)
         isZoomEnabled = typedArray.getBoolean(R.styleable.PdfRendererView_pdfView_enableZoom, true)
 
         // Fetch all margin values efficiently
-        val marginDim =
-            typedArray.getDimensionPixelSize(R.styleable.PdfRendererView_pdfView_page_margin, 0)
+        val marginDim = typedArray.getDimensionPixelSize(R.styleable.PdfRendererView_pdfView_page_margin, 0)
         pageMargin.set(
             typedArray.getDimensionPixelSize(
                 R.styleable.PdfRendererView_pdfView_page_marginLeft,
@@ -376,15 +374,7 @@ class PdfRendererView @JvmOverloads constructor(
             )
         )
 
-        applyScreenshotSecurity()
         typedArray.recycle()
-    }
-
-    private fun applyScreenshotSecurity() {
-        if (disableScreenshots) {
-            // Disables taking screenshots and screen recording
-            (context as? Activity)?.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-        }
     }
 
     /**
@@ -410,20 +400,6 @@ class PdfRendererView @JvmOverloads constructor(
         return (0..<totalPageCount).mapNotNull { page ->
             getBitmapByPage(page)
         }
-    }
-
-    /**
-     * Enables or disables zoom functionality on the PDF pages.
-     *
-     * @param zoomEnabled true to enable zoom, false to disable.
-     */
-    fun setZoomEnabled(zoomEnabled: Boolean) {
-        isZoomEnabled = zoomEnabled
-    }
-
-    @TestOnly
-    fun getZoomEnabled(): Boolean {
-        return isZoomEnabled
     }
 
     private fun preloadCacheIntoMemory() {

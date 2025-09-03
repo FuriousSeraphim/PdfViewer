@@ -7,7 +7,7 @@ import java.io.File
 import java.security.MessageDigest
 import kotlin.math.max
 
-object CacheHelper {
+internal object CacheHelper {
 
     // **Apply Cache Strategy**
     suspend fun handleCacheStrategy(
@@ -15,7 +15,7 @@ object CacheHelper {
         cacheDir: File,
         cacheStrategy: CacheStrategy,
         newFileName: String,
-        maxCachedPdfs: Int
+        maxCachedPdfs: Int,
     ) = withContext(Dispatchers.IO) {
         Log.d(
             "CacheHelper",
@@ -52,11 +52,11 @@ object CacheHelper {
     private fun enforceCacheLimit(
         origin: String,
         cacheDir: File,
-        maxCachedPdfs: Int
+        maxCachedPdfs: Int,
     ) {
         val cachedFolders = cacheDir.parentFile?.listFiles()?.filter { it.isDirectory } ?: return
 
-        if (cachedFolders.size >= max(maxCachedPdfs,1)) {
+        if (cachedFolders.size >= max(maxCachedPdfs, 1)) {
             cachedFolders.minByOrNull { it.lastModified() }?.let {
                 Log.d("CacheHelper", "[$origin] Evicting old cached folder: ${it.absolutePath}")
                 it.deleteRecursively()

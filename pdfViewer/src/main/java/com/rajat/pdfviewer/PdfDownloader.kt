@@ -21,7 +21,7 @@ import okhttp3.Response
 import java.io.File
 import java.io.IOException
 
-class PdfDownloader(
+internal class PdfDownloader(
     private val coroutineScope: CoroutineScope,
     private val headers: HeaderData,
     private val url: String,
@@ -39,20 +39,15 @@ class PdfDownloader(
     }
 
     fun start() {
+        val notHttp = !url.startsWith("http://", ignoreCase = true) && !url.startsWith("https://", ignoreCase = true)
+        if (notHttp) {
+            listener.onDownloadError(
+                IllegalArgumentException("Invalid URL scheme: $url. Expected HTTP or HTTPS.")
+            )
+            return
+        }
+
         coroutineScope.launch(Dispatchers.IO) {
-            // Validate URL scheme before proceeding
-            if (!url.startsWith("http://", ignoreCase = true) && !url.startsWith(
-                    "https://",
-                    ignoreCase = true
-                )
-            ) {
-                withContext(Dispatchers.Main) {
-                    listener.onDownloadError(
-                        IllegalArgumentException("Invalid URL scheme: $url. Expected HTTP or HTTPS.")
-                    )
-                }
-                return@launch
-            }
             checkAndDownload(url)
         }
     }

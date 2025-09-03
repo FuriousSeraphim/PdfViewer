@@ -17,10 +17,8 @@ import androidx.core.view.updateLayoutParams
 import androidx.recyclerview.widget.RecyclerView
 import com.rajat.pdfviewer.util.BitmapPool
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.Runnable
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -31,8 +29,16 @@ internal class PdfViewAdapter(
     private val parentView: PdfRendererView,
     private val pageSpacing: Rect,
     private val enableLoadingForPages: Boolean,
-    private val renderQuality: RenderQuality,
+    renderQuality: RenderQuality,
 ): RecyclerView.Adapter<PdfViewAdapter.PdfPageViewHolder>() {
+
+    var renderQuality: RenderQuality = renderQuality
+        set(value) {
+            field = value
+            if (value != field) {
+                notifyDataSetChanged()
+            }
+        }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PdfPageViewHolder {
         return PdfPageViewHolder(LayoutInflater.from(parent.context).inflate(R.layout.item_pdf_page, parent, false))
@@ -91,14 +97,12 @@ internal class PdfViewAdapter(
                 renderer.getPageDimensionsAsync(position) { size ->
                     if (currentBoundPage != position) return@getPageDimensionsAsync
 
-                    val aspectRatio = runCatching {
-                        size.width.toFloat() / size.height.toFloat()
-                    }.getOrElse { 1f }
+                    val aspectRatio = size.width.coerceAtLeast(1).toFloat() / size.height.coerceAtLeast(1)
                     val height = (displayWidth / aspectRatio).toInt()
                     updateLayoutParams(height)
 
-                    val bitmapWidth = (displayWidth * renderQuality.qualityMultiplier).toInt()
-                    val bitmapHeight = (height * renderQuality.qualityMultiplier).toInt()
+                    val bitmapWidth = (displayWidth * renderQuality.multiplier).toInt()
+                    val bitmapHeight = (height * renderQuality.multiplier).toInt()
                     renderAndApplyBitmap(position, bitmapWidth, bitmapHeight)
                 }
             }

@@ -12,15 +12,15 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 
-class CacheManager(
-    private val context: Context,
+internal class CacheManager(
+    context: Context,
     private val currentOpenedFileName: String,
     private val cacheStrategy: CacheStrategy = CacheStrategy.MAXIMIZE_PERFORMANCE
 ) {
     private val memoryCache: LruCache<Int, Bitmap> = createMemoryCache()
     private var cacheDir = File(context.cacheDir, "${CACHE_PATH}/$currentOpenedFileName")
 
-    suspend fun initialize() = withContext(Dispatchers.IO) {
+    suspend fun initialize(context: Context) = withContext(Dispatchers.IO) {
         if (cacheStrategy == CacheStrategy.DISABLE_CACHE) return@withContext
 
         cacheDir = File(context.cacheDir, "$CACHE_PATH/$currentOpenedFileName")

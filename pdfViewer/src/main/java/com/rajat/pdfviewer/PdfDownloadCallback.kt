@@ -8,8 +8,8 @@ internal class PdfDownloadCallback(
     private val onStart: () -> Unit,
     private val onProgress: (Int, Long, Long) -> Unit,
     private val onSuccess: (File) -> Unit,
-    private val onError: (Throwable) -> Unit
-) : PdfDownloader.StatusListener {
+    private val onError: (Throwable) -> Unit,
+): PdfDownloader.StatusListener {
 
     override fun getContext(): Context = context
 

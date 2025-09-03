@@ -20,10 +20,10 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.abs
 
-class PdfRendererCore private constructor(
+internal class PdfRendererCore private constructor(
     private val fileDescriptor: ParcelFileDescriptor,
     private val cacheManager: CacheManager,
-    private val pdfRenderer: PdfRenderer
+    private val pdfRenderer: PdfRenderer,
 ) {
 
     private var isRendererOpen = true
@@ -42,17 +42,16 @@ class PdfRendererCore private constructor(
     private var prefetchJob: Job? = null
 
     companion object {
-        var enableDebugMetrics: Boolean = true
-        const val prefetchDistance: Int = 2
+        internal val prefetchDistance: Int = 2
 
         suspend fun create(
             context: Context,
             fileDescriptor: ParcelFileDescriptor,
             cacheIdentifier: String,
-            cacheStrategy: CacheStrategy
+            cacheStrategy: CacheStrategy,
         ): PdfRendererCore = withContext(Dispatchers.IO) {
             val pdfRenderer = PdfRenderer(fileDescriptor)
-            val manager = CacheManager(context, cacheIdentifier, cacheStrategy).apply { initialize() }
+            val manager = CacheManager(context, cacheIdentifier, cacheStrategy).apply { initialize(context) }
             val core = PdfRendererCore(fileDescriptor, manager, pdfRenderer)
             core.preloadPageDimensions()
             return@withContext core
@@ -91,12 +90,10 @@ class PdfRendererCore private constructor(
     fun renderPage(
         pageNo: Int,
         bitmap: Bitmap,
-        onBitmapReady: ((success: Boolean, pageNo: Int, bitmap: Bitmap?) -> Unit)? = null
+        onBitmapReady: ((success: Boolean, pageNo: Int, bitmap: Bitmap?) -> Unit)? = null,
     ) {
-        val startTime = System.nanoTime()
-
         if (pageNo < 0 || pageNo >= getPageCount()) {
-            Log.w(METRICS_TAG, "⚠️ Skipped invalid render for page $pageNo")
+            debugLog(METRICS_TAG) { "⚠️ Skipped invalid render for page $pageNo" }
             onBitmapReady?.invoke(false, pageNo, null)
             return
         }
@@ -106,7 +103,7 @@ class PdfRendererCore private constructor(
             if (cachedBitmap != null) {
                 withContext(Dispatchers.Main) {
                     onBitmapReady?.invoke(true, pageNo, cachedBitmap)
-                    Log.d(LOG_TAG, "Page $pageNo loaded from cache")
+                    debugLog(LOG_TAG) { "Page $pageNo loaded from cache" }
                 }
                 return@launch
             }
@@ -132,7 +129,7 @@ class PdfRendererCore private constructor(
                         success = true
                         renderedBitmap = bitmap
                     } catch (e: Exception) {
-                        Log.e(LOG_TAG, "Error rendering page $pageNo: ${e.message}", e)
+                        debugLog(LOG_TAG, e) { "Error rendering page $pageNo: ${e.message}" }
                     }
                 }
 
@@ -237,7 +234,7 @@ class PdfRendererCore private constructor(
                 try {
                     pdfRenderer.openPage(pageNo).use(block)
                 } catch (e: Exception) {
-                    Log.e(LOG_TAG, "withPdfPage error: ${e.message}", e)
+                    debugLog(LOG_TAG, e) { "withPdfPage error: ${e.message}" }
                     null
                 }
             }
@@ -257,7 +254,7 @@ class PdfRendererCore private constructor(
             }
             page
         } catch (e: Exception) {
-            Log.e("PDF_OPEN_TRACKER", "Error opening page $pageNo: ${e.message}", e)
+            debugLog(LOG_TAG, e) { "Error opening page $pageNo: ${e.message}" }
             null
         }
     }
@@ -278,7 +275,7 @@ class PdfRendererCore private constructor(
             try {
                 entry.value.close()
             } catch (e: IllegalStateException) {
-                Log.e(LOG_TAG, "Page ${entry.key} was already closed", e)
+                debugLog(LOG_TAG, e) { "Page ${entry.key} was already closed" }
             } finally {
                 iterator.remove()
             }
@@ -288,17 +285,23 @@ class PdfRendererCore private constructor(
     fun closePdfRender() {
         if (!isRendererOpen) return
 
-        Log.d(LOG_TAG, "Closing PdfRenderer and releasing resources.")
+        debugLog(LOG_TAG) { "Closing PdfRenderer and releasing resources." }
 
         scope.coroutineContext.cancelChildren()
         closeAllOpenPages()
 
         runCatching { pdfRenderer.close() }
-            .onFailure { Log.e(LOG_TAG, "Error closing PdfRenderer: ${it.message}", it) }
+            .onFailure { debugLog(LOG_TAG, it) { "Error closing PdfRenderer: ${it.message}" } }
 
         runCatching { fileDescriptor.close() }
-            .onFailure { Log.e(LOG_TAG, "Error closing file descriptor: ${it.message}", it) }
+            .onFailure { debugLog(LOG_TAG, it) { "Error closing file descriptor: ${it.message}" } }
 
         isRendererOpen = false
+    }
+
+    internal inline fun debugLog(tag: String, throwable: Throwable? = null, message: () -> String) {
+        if (BuildConfig.DEBUG) {
+            Log.d(tag, message(), throwable)
+        }
     }
 }

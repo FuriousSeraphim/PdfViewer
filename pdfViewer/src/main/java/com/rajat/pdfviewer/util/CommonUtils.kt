@@ -1,9 +1,10 @@
 package com.rajat.pdfviewer.util
 
 import android.graphics.Bitmap
+import androidx.recyclerview.widget.RecyclerView
 import java.util.*
 
-object BitmapPool {
+internal object BitmapPool {
     private val pool = LinkedList<Bitmap>()
     private val maxPoolSize: Int
         get() = calculateMaxPoolSize()
@@ -18,7 +19,7 @@ object BitmapPool {
     fun getBitmap(
         width: Int,
         height: Int,
-        config: Bitmap.Config = Bitmap.Config.ARGB_8888
+        config: Bitmap.Config = Bitmap.Config.ARGB_8888,
     ): Bitmap {
         synchronized(pool) {
             val iterator = pool.iterator()
@@ -47,4 +48,8 @@ object BitmapPool {
             }
         }
     }
+}
+
+internal inline fun Int.validPositionOr(block: () -> Int): Int {
+    return if (this == RecyclerView.NO_POSITION) block() else this
 }

@@ -14,7 +14,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.*
 
-object FileUtils {
+internal object FileUtils {
     private const val TAG = "PdfValidator"
 
     @Throws(IOException::class)
