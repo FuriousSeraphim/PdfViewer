@@ -101,7 +101,6 @@ fun PdfRendererViewCompose(
                         view.initWithUrl(
                             url = source.url,
                             headers = headers,
-                            coroutineScope = lifecycleOwner.lifecycleScope,
                             cacheStrategy = cacheStrategy
                         )
                         hasInit = true

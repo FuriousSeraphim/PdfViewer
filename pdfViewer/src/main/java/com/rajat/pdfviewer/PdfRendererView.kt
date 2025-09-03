@@ -1,7 +1,6 @@
 package com.rajat.pdfviewer
 
 import android.content.Context
-import android.content.res.TypedArray
 import android.graphics.Bitmap
 import android.graphics.Rect
 import android.graphics.drawable.Drawable
@@ -18,6 +17,17 @@ import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.RecyclerView.NO_POSITION
+import com.rajat.pdfviewer.R.styleable.PdfRendererView
+import com.rajat.pdfviewer.R.styleable.PdfRendererView_pdfView_divider
+import com.rajat.pdfviewer.R.styleable.PdfRendererView_pdfView_enableLoadingForPages
+import com.rajat.pdfviewer.R.styleable.PdfRendererView_pdfView_enableZoom
+import com.rajat.pdfviewer.R.styleable.PdfRendererView_pdfView_page_margin
+import com.rajat.pdfviewer.R.styleable.PdfRendererView_pdfView_page_marginBottom
+import com.rajat.pdfviewer.R.styleable.PdfRendererView_pdfView_page_marginLeft
+import com.rajat.pdfviewer.R.styleable.PdfRendererView_pdfView_page_marginRight
+import com.rajat.pdfviewer.R.styleable.PdfRendererView_pdfView_page_marginTop
+import com.rajat.pdfviewer.R.styleable.PdfRendererView_pdfView_quality
+import com.rajat.pdfviewer.R.styleable.PdfRendererView_pdfView_showDivider
 import com.rajat.pdfviewer.util.CacheManager
 import com.rajat.pdfviewer.util.CacheStrategy
 import com.rajat.pdfviewer.util.FileUtils
@@ -29,6 +39,7 @@ import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import androidx.core.content.withStyledAttributes
 
 /**
  * Created by Rajat on 11,July,2020
@@ -107,7 +118,20 @@ class PdfRendererView @JvmOverloads constructor(
     // endregion
 
     init {
-        getAttrs(attrs, defStyleAttr)
+        context.withStyledAttributes(attrs, PdfRendererView, defStyleAttr, 0) {
+            renderQuality = RenderQuality(getFloat(PdfRendererView_pdfView_quality, 1f))
+            showDivider = getBoolean(PdfRendererView_pdfView_showDivider, true)
+            divider = getDrawable(PdfRendererView_pdfView_divider)
+            enableLoadingForPages = getBoolean(PdfRendererView_pdfView_enableLoadingForPages, false)
+            isZoomEnabled = getBoolean(PdfRendererView_pdfView_enableZoom, true)
+            val defaultMargin = getDimensionPixelSize(PdfRendererView_pdfView_page_margin, 0)
+            pageMargin.set(
+                getDimensionPixelSize(PdfRendererView_pdfView_page_marginLeft, defaultMargin),
+                getDimensionPixelSize(PdfRendererView_pdfView_page_marginTop, defaultMargin),
+                getDimensionPixelSize(PdfRendererView_pdfView_page_marginRight, defaultMargin),
+                getDimensionPixelSize(PdfRendererView_pdfView_page_marginBottom, defaultMargin),
+            )
+        }
     }
 
     /**
@@ -245,12 +269,12 @@ class PdfRendererView @JvmOverloads constructor(
 
         // Now it's safe to create the adapter and assign it
         pdfViewAdapter = PdfViewAdapter(
-            context,
-            pdfRendererCore,
-            this,
-            pageMargin,
-            enableLoadingForPages,
-            renderQuality,
+            context = context,
+            renderer = pdfRendererCore,
+            parentView = this,
+            pageSpacing = pageMargin,
+            enableLoadingForPages = enableLoadingForPages,
+            renderQuality = renderQuality,
         )
 
         recyclerView.adapter = pdfViewAdapter
@@ -344,42 +368,6 @@ class PdfRendererView @JvmOverloads constructor(
 
     private fun updatePageNumberDisplay(position: Int) {
         statusListener?.onPageChanged(position, totalPageCount)
-    }
-
-    private fun getAttrs(attrs: AttributeSet?, defStyle: Int) {
-        val typedArray = context.obtainStyledAttributes(attrs, R.styleable.PdfRendererView, defStyle, 0)
-        setTypeArray(typedArray)
-    }
-
-    private fun setTypeArray(typedArray: TypedArray) {
-        renderQuality = RenderQuality(typedArray.getFloat(R.styleable.PdfRendererView_pdfView_quality, 1f))
-        showDivider = typedArray.getBoolean(R.styleable.PdfRendererView_pdfView_showDivider, true)
-        divider = typedArray.getDrawable(R.styleable.PdfRendererView_pdfView_divider)
-        enableLoadingForPages = typedArray.getBoolean(R.styleable.PdfRendererView_pdfView_enableLoadingForPages, false)
-        isZoomEnabled = typedArray.getBoolean(R.styleable.PdfRendererView_pdfView_enableZoom, true)
-
-        // Fetch all margin values efficiently
-        val marginDim = typedArray.getDimensionPixelSize(R.styleable.PdfRendererView_pdfView_page_margin, 0)
-        pageMargin.set(
-            typedArray.getDimensionPixelSize(
-                R.styleable.PdfRendererView_pdfView_page_marginLeft,
-                marginDim
-            ),
-            typedArray.getDimensionPixelSize(
-                R.styleable.PdfRendererView_pdfView_page_marginTop,
-                marginDim
-            ),
-            typedArray.getDimensionPixelSize(
-                R.styleable.PdfRendererView_pdfView_page_marginRight,
-                marginDim
-            ),
-            typedArray.getDimensionPixelSize(
-                R.styleable.PdfRendererView_pdfView_page_marginBottom,
-                marginDim
-            )
-        )
-
-        typedArray.recycle()
     }
 
     /**

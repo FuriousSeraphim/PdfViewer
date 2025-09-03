@@ -98,7 +98,6 @@ class MainActivity: AppCompatActivity() {
         findViewById<View>(R.id.onlinePdf).setOnClickListener {
             pdfView.initWithUrl(
                 url = largePdf1,
-                coroutineScope = lifecycleScope,
                 cacheStrategy = CacheStrategy.MINIMIZE_CACHE
             )
         }
@@ -114,7 +113,6 @@ class MainActivity: AppCompatActivity() {
         findViewById<View>(R.id.showInView).setOnClickListener {
             pdfView.initWithUrl(
                 url = largePdf,
-                coroutineScope = lifecycleScope,
                 cacheStrategy = CacheStrategy.MINIMIZE_CACHE
             )
         }
