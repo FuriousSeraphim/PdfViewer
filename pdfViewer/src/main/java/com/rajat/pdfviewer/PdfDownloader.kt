@@ -23,7 +23,7 @@ import java.io.IOException
 
 internal class PdfDownloader(
     private val coroutineScope: CoroutineScope,
-    private val headers: HeaderData,
+    private val headers: Map<String, String>,
     private val url: String,
     private val cacheStrategy: CacheStrategy,
     private val listener: StatusListener,
@@ -142,7 +142,7 @@ internal class PdfDownloader(
                 val response = makeNetworkRequest(downloadUrl)
                 validateResponse(response)
 
-                response.body?.use { body ->
+                response.body.use { body ->
                     body.byteStream().use { inputStream ->
                         writeFile(inputStream, tempFile, body.contentLength()) { progress ->
                             Handler(Looper.getMainLooper()).post {
@@ -150,7 +150,7 @@ internal class PdfDownloader(
                             }
                         }
                     }
-                } ?: throw IOException("Empty response body received for PDF")
+                }
 
                 val renamed = tempFile.renameTo(pdfFile)
                 if (!renamed) {
@@ -176,7 +176,7 @@ internal class PdfDownloader(
 
     private fun makeNetworkRequest(downloadUrl: String): Response {
         val requestBuilder = Request.Builder().url(downloadUrl)
-        headers.headers.forEach { (key, value) -> requestBuilder.addHeader(key, value) }
+        headers.forEach { (key, value) -> requestBuilder.addHeader(key, value) }
 
         return httpClient.newCall(requestBuilder.build()).execute()
     }

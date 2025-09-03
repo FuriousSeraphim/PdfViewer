@@ -116,10 +116,6 @@ class MainActivity: AppCompatActivity() {
                 cacheStrategy = CacheStrategy.MINIMIZE_CACHE
             )
         }
-
-        findViewById<View>(R.id.openInCompose).setOnClickListener {
-            startActivity(Intent(this, ComposeActivity::class.java))
-        }
     }
 
     private fun launchPdfFromUri(uri: Uri) {

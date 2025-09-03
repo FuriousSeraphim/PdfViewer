@@ -145,7 +145,7 @@ class PdfRendererView @JvmOverloads constructor(
      */
     fun initWithUrl(
         url: String,
-        headers: HeaderData = HeaderData(),
+        headers: Map<String, String> = emptyMap(),
         cacheStrategy: CacheStrategy = CacheStrategy.MAXIMIZE_PERFORMANCE,
     ) {
         viewJob.cancelChildren()

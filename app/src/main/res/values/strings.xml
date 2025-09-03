@@ -1,6 +1,5 @@
 <resources>
     <string name="app_name">pdfViewer</string>
     <string name="pdfView_page_number" translatable="false">%1$s / %2$s</string>
-    <string name="title_activity_compose">ComposeActivity</string>
 
 </resources>
