@@ -42,7 +42,6 @@ class PdfRendererView @JvmOverloads constructor(
     private lateinit var pdfRendererCore: PdfRendererCore
     private lateinit var pdfViewAdapter: PdfViewAdapter
     private var pdfRendererCoreInitialised = false
-    private var cacheStrategy: CacheStrategy = CacheStrategy.MAXIMIZE_PERFORMANCE
     // endregion
 
     // region UI
@@ -123,17 +122,16 @@ class PdfRendererView @JvmOverloads constructor(
     fun initWithUrl(
         url: String,
         headers: HeaderData = HeaderData(),
-        coroutineScope: CoroutineScope,
         cacheStrategy: CacheStrategy = CacheStrategy.MAXIMIZE_PERFORMANCE,
     ) {
-        this.cacheStrategy = cacheStrategy
+        viewJob.cancelChildren()
         PdfDownloader(
-            coroutineScope,
-            headers,
-            url,
-            cacheStrategy,
-            PdfDownloadCallback(
-                context,
+            coroutineScope = viewScope,
+            headers = headers,
+            url = url,
+            cacheStrategy = cacheStrategy,
+            listener = PdfDownloadCallback(
+                context = context,
                 onStart = { statusListener?.onPdfLoadStart() },
                 onProgress = { progress, current, total ->
                     statusListener?.onPdfLoadProgress(progress, current, total)
@@ -158,16 +156,17 @@ class PdfRendererView @JvmOverloads constructor(
      * @param cacheStrategy Cache strategy to apply.
      */
     fun initWithFile(file: File, cacheStrategy: CacheStrategy = CacheStrategy.MAXIMIZE_PERFORMANCE) {
-        this.cacheStrategy = cacheStrategy
-        val cacheIdentifier = file.name
-
-        // Notify loading started
         statusListener?.onPdfRenderStart()
+        viewJob.cancelChildren()
         viewScope.launch {
             try {
                 val fileDescriptor = PdfRendererCore.getFileDescriptor(file)
-                val renderer =
-                    PdfRendererCore.create(context, fileDescriptor, cacheIdentifier, cacheStrategy)
+                val renderer = PdfRendererCore.create(
+                    context = context,
+                    fileDescriptor = fileDescriptor,
+                    cacheIdentifier = file.name,
+                    cacheStrategy = cacheStrategy,
+                )
                 withContext(Dispatchers.Main) {
                     initializeRenderer(renderer)
                     statusListener?.onPdfLoadSuccess(file.absolutePath)
@@ -184,6 +183,7 @@ class PdfRendererView @JvmOverloads constructor(
         assetFileName: String,
         cacheStrategy: CacheStrategy = CacheStrategy.MAXIMIZE_PERFORMANCE,
     ) {
+        viewJob.cancelChildren()
         viewScope.launch {
             val file = FileUtils.fileFromAsset(context, assetFileName)
             withContext(Dispatchers.Main) {
@@ -197,15 +197,21 @@ class PdfRendererView @JvmOverloads constructor(
      *
      * @param uri The Uri to the PDF file.
      */
-    fun initWithUri(uri: Uri) {
-        val cacheIdentifier = uri.toString().hashCode().toString()
-
+    fun initWithUri(
+        uri: Uri,
+        cacheStrategy: CacheStrategy = CacheStrategy.MAXIMIZE_PERFORMANCE,
+    ) {
         statusListener?.onPdfRenderStart()
-
+        viewJob.cancelChildren()
         viewScope.launch {
             try {
                 val fileDescriptor = context.contentResolver.openFileDescriptor(uri, "r") ?: return@launch
-                val renderer = PdfRendererCore.create(context, fileDescriptor, cacheIdentifier, cacheStrategy)
+                val renderer = PdfRendererCore.create(
+                    context = context,
+                    fileDescriptor = fileDescriptor,
+                    cacheIdentifier = uri.toString().hashCode().toString(),
+                    cacheStrategy = cacheStrategy,
+                )
                 withContext(Dispatchers.Main) {
                     initializeRenderer(renderer)
                     statusListener?.onPdfLoadSuccess("uri:$uri")
@@ -341,8 +347,7 @@ class PdfRendererView @JvmOverloads constructor(
     }
 
     private fun getAttrs(attrs: AttributeSet?, defStyle: Int) {
-        val typedArray =
-            context.obtainStyledAttributes(attrs, R.styleable.PdfRendererView, defStyle, 0)
+        val typedArray = context.obtainStyledAttributes(attrs, R.styleable.PdfRendererView, defStyle, 0)
         setTypeArray(typedArray)
     }
 
@@ -419,6 +424,7 @@ class PdfRendererView @JvmOverloads constructor(
             recyclerView.adapter = null
         }
         closePdfRender()
+        viewJob.cancelChildren()
     }
 
     override fun onSaveInstanceState(): Parcelable {
