@@ -9,9 +9,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.lifecycle.LifecycleOwner
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.lifecycleScope
 import com.rajat.pdfviewer.HeaderData
 import com.rajat.pdfviewer.PdfRendererView
 import com.rajat.pdfviewer.RenderQuality
@@ -27,7 +24,6 @@ fun PdfRendererViewCompose(
     renderQuality: RenderQuality = RenderQuality.NORMAL,
     headers: HeaderData = HeaderData(),
     cacheStrategy: CacheStrategy = CacheStrategy.MAXIMIZE_PERFORMANCE,
-    lifecycleOwner: LifecycleOwner = LocalLifecycleOwner.current,
     jumpToPage: Int? = null,
     statusCallBack: PdfRendererView.StatusCallBack? = null,
     zoomListener: PdfRendererView.ZoomListener? = null,
