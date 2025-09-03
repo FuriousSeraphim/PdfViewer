@@ -31,11 +31,6 @@ internal class PdfRendererCore private constructor(
     private val renderLock = Mutex()
     private val pageCount = AtomicInteger(pdfRenderer.pageCount)
 
-    private var totalPagesRendered = 0
-    private var totalRenderTime = 0L
-    private var slowestRenderTime = 0L
-    private var slowestPage: Int? = null
-
     private val openPages = ConcurrentHashMap<Int, PdfRenderer.Page>()
     private val renderJobs = ConcurrentHashMap<Int, Job>()
     private val pageDimensionCache = mutableMapOf<Int, Size>()
@@ -220,10 +215,6 @@ internal class PdfRendererCore private constructor(
         }
     }
 
-    fun averageRenderTime(): Long = if (totalPagesRendered == 0) 0 else totalRenderTime / totalPagesRendered
-
-    fun slowestPageInfo(): Pair<Int, Long>? = slowestPage?.let { it to slowestRenderTime }
-
     private suspend fun <T> withPdfPage(pageNo: Int, block: (PdfRenderer.Page) -> T): T? =
         withContext(Dispatchers.IO) {
             renderLock.withLock {
@@ -262,10 +253,6 @@ internal class PdfRendererCore private constructor(
     fun cancelRender(pageNo: Int) {
         renderJobs[pageNo]?.cancel()
         renderJobs.remove(pageNo)
-    }
-
-    fun cancelPrefetch() {
-        prefetchJob?.cancel()
     }
 
     private fun closeAllOpenPages() {
