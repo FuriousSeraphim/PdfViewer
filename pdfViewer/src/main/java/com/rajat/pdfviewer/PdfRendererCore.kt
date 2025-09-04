@@ -29,7 +29,6 @@ internal class PdfRendererCore private constructor(
     private var isRendererOpen = true
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val renderLock = Mutex()
-    private val pageCount = AtomicInteger(-1)
 
     private val openPages = ConcurrentHashMap<Int, PdfRenderer.Page>()
     private val renderJobs = ConcurrentHashMap<Int, Job>()
@@ -74,7 +73,7 @@ internal class PdfRendererCore private constructor(
         private const val METRICS_TAG = "PdfRendererCore_Metrics"
     }
 
-    fun getPageCount(): Int = pageCount.get().takeIf { isRendererOpen } ?: 0
+    fun getPageCount(): Int = pdfRenderer.pageCount
 
     suspend fun getBitmapFromCache(pageNo: Int): Bitmap? = cacheManager.getBitmapFromCache(pageNo)
 
