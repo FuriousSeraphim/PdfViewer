@@ -25,7 +25,13 @@ internal object BitmapPool {
             val iterator = pool.iterator()
             while (iterator.hasNext()) {
                 val bitmap = iterator.next()
-                if (!bitmap.isRecycled && bitmap.width == width && bitmap.height == height && bitmap.config == config) {
+
+                if (bitmap.isRecycled) {
+                    iterator.remove()
+                    continue
+                }
+
+                if (bitmap.width == width && bitmap.height == height && bitmap.config == config) {
                     iterator.remove()
                     return bitmap
                 }
@@ -36,15 +42,9 @@ internal object BitmapPool {
     }
 
     fun recycleBitmap(bitmap: Bitmap) {
-        if (!bitmap.isRecycled) {
+        if (!bitmap.isRecycled && pool.size < maxPoolSize) {
             synchronized(pool) {
-                // Limit the pool size to a dynamically calculated value.
-                if (pool.size < maxPoolSize) {
-                    pool.add(bitmap)
-                } else {
-                    // If the pool is at max capacity, recycle the bitmap to free memory.
-                    bitmap.recycle()
-                }
+                pool.add(bitmap)
             }
         }
     }

@@ -10,13 +10,13 @@ import kotlin.math.max
 internal object CacheHelper {
 
     // **Apply Cache Strategy**
-    suspend fun handleCacheStrategy(
+    fun handleCacheStrategy(
         origin: String,
         cacheDir: File,
         cacheStrategy: CacheStrategy,
         newFileName: String,
         maxCachedPdfs: Int,
-    ) = withContext(Dispatchers.IO) {
+    ) {
         Log.d(
             "CacheHelper",
             "[$origin] Cache Strategy: $cacheStrategy | Directory: $cacheDir | File: $newFileName"

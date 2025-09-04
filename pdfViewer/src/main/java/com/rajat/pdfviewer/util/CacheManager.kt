@@ -14,34 +14,33 @@ import java.io.FileOutputStream
 
 internal class CacheManager(
     context: Context,
-    private val currentOpenedFileName: String,
+    currentOpenedFileName: String,
     private val cacheStrategy: CacheStrategy = CacheStrategy.MAXIMIZE_PERFORMANCE
 ) {
     private val memoryCache: LruCache<Int, Bitmap> = createMemoryCache()
-    private var cacheDir = File(context.cacheDir, "${CACHE_PATH}/$currentOpenedFileName")
+    private val cacheDir = File(context.cacheDir, "${CACHE_PATH}/$currentOpenedFileName")
 
-    suspend fun initialize(context: Context) = withContext(Dispatchers.IO) {
-        if (cacheStrategy == CacheStrategy.DISABLE_CACHE) return@withContext
+    init {
+        if (cacheStrategy != CacheStrategy.DISABLE_CACHE) {
+            if (!cacheDir.exists()) {
+                cacheDir.mkdirs()
+            }
 
-        cacheDir = File(context.cacheDir, "$CACHE_PATH/$currentOpenedFileName")
-        if (!cacheDir.exists()) {
-            cacheDir.mkdirs()
+            handleCacheStrategy(
+                "CacheManager",
+                cacheDir,
+                cacheStrategy,
+                currentOpenedFileName,
+                MAX_CACHED_PDFS
+            )
         }
-
-        handleCacheStrategy(
-            "CacheManager",
-            cacheDir,
-            cacheStrategy,
-            currentOpenedFileName,
-            MAX_CACHED_PDFS
-        )
     }
 
     private fun createMemoryCache(): LruCache<Int, Bitmap> {
         val maxMemory = (Runtime.getRuntime().maxMemory() / 1024).toInt()
-        val cacheSize = maxMemory / 6
+        val cacheSize = maxMemory / 16
         return object : LruCache<Int, Bitmap>(cacheSize) {
-            override fun sizeOf(key: Int, value: Bitmap): Int = value.byteCount / 1024
+            override fun sizeOf(key: Int, value: Bitmap): Int = value.allocationByteCount / 1024
         }
     }
 
@@ -67,9 +66,7 @@ internal class CacheManager(
     }
 
     private suspend fun writeBitmapToCache(pageNo: Int, bitmap: Bitmap) = withContext(Dispatchers.IO) {
-
         runCatching {
-
             cacheDir.mkdirs()
             val savePath = File(cacheDir, cachedFileNameWithFormat(pageNo))
             savePath.parentFile?.mkdirs()

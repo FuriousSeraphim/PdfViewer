@@ -5,6 +5,7 @@ import android.graphics.Rect
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.util.Size
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -52,7 +53,7 @@ internal class PdfViewAdapter(
 
     override fun onViewRecycled(holder: PdfPageViewHolder) {
         super.onViewRecycled(holder)
-        holder.cancelJobs()
+        holder.unbind()
     }
 
     inner class PdfPageViewHolder(itemView: View): RecyclerView.ViewHolder(itemView) {
@@ -110,18 +111,22 @@ internal class PdfViewAdapter(
             startPersistentFallbackRender(position)
         }
 
+        fun unbind() {
+            cancelJobs()
+            pageView.setImageDrawable(null)
+            hasRealBitmap = false
+        }
+
         fun cancelJobs() {
             mainScope.coroutineContext.cancelChildren()
         }
 
         private fun renderAndApplyBitmap(page: Int, width: Int, height: Int) {
-            val bitmap = BitmapPool.getBitmap(width, maxOf(1, height))
-
-            renderer.renderPage(page, bitmap) { success, pageNo, rendered ->
+            renderer.renderPage(page, Size(width, maxOf(1, height))) { pageNumber, rendered ->
                 mainScope.launch {
-                    if (success && currentBoundPage == pageNo) {
-                        if (DEBUG_LOGS_ENABLED) Log.d("PdfViewAdapter", "✅ Render complete for page $pageNo")
-                        pageView.setImageBitmap(rendered ?: bitmap)
+                    if (rendered != null && currentBoundPage == pageNumber) {
+                        if (DEBUG_LOGS_ENABLED) Log.d("PdfViewAdapter", "✅ Render complete for page $pageNumber")
+                        pageView.setImageBitmap(rendered)
                         hasRealBitmap = true
                         applyFadeInAnimation(pageView)
                         progressBar.isGone = true
@@ -129,14 +134,12 @@ internal class PdfViewAdapter(
                         val fallbackHeight = pageView.height.takeIf { it > 0 } ?: context.resources.displayMetrics.heightPixels
 
                         renderer.schedulePrefetch(
-                            currentPage = pageNo,
+                            currentPage = pageNumber,
                             width = width,
                             height = fallbackHeight,
                             direction = parentView.getScrollDirection()
                         )
                     } else {
-                        if (DEBUG_LOGS_ENABLED) Log.w("PdfViewAdapter", "🚫 Skipping render for page $pageNo — ViewHolder now bound to $currentBoundPage")
-                        BitmapPool.recycleBitmap(bitmap)
                         retryRenderOnce(page, width, height)
                     }
                 }
@@ -144,17 +147,14 @@ internal class PdfViewAdapter(
         }
 
         private fun retryRenderOnce(page: Int, width: Int, height: Int) {
-            val retryBitmap = BitmapPool.getBitmap(width, maxOf(1, height))
-            renderer.renderPage(page, retryBitmap) { success, retryPageNo, rendered ->
+            renderer.renderPage(page, Size(width, maxOf(1, height))) { pageNumber, rendered ->
                 mainScope.launch {
-                    if (success && retryPageNo == currentBoundPage && !hasRealBitmap) {
-                        if (DEBUG_LOGS_ENABLED) Log.d("PdfViewAdapter", "🔁 Retry success for page $retryPageNo")
-                        pageView.setImageBitmap(rendered ?: retryBitmap)
+                    if (rendered != null && pageNumber == currentBoundPage && !hasRealBitmap) {
+                        if (DEBUG_LOGS_ENABLED) Log.d("PdfViewAdapter", "🔁 Retry success for page $pageNumber")
+                        pageView.setImageBitmap(rendered)
                         hasRealBitmap = true
                         applyFadeInAnimation(pageView)
                         progressBar.isGone = true
-                    } else {
-                        BitmapPool.recycleBitmap(retryBitmap)
                     }
                 }
             }

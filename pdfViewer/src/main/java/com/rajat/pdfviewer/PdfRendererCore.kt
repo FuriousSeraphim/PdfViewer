@@ -29,7 +29,7 @@ internal class PdfRendererCore private constructor(
     private var isRendererOpen = true
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val renderLock = Mutex()
-    private val pageCount = AtomicInteger(pdfRenderer.pageCount)
+    private val pageCount = AtomicInteger(-1)
 
     private val openPages = ConcurrentHashMap<Int, PdfRenderer.Page>()
     private val renderJobs = ConcurrentHashMap<Int, Job>()
@@ -46,7 +46,7 @@ internal class PdfRendererCore private constructor(
             cacheStrategy: CacheStrategy,
         ): PdfRendererCore = withContext(Dispatchers.IO) {
             val pdfRenderer = PdfRenderer(fileDescriptor)
-            val manager = CacheManager(context, cacheIdentifier, cacheStrategy).apply { initialize(context) }
+            val manager = CacheManager(context, cacheIdentifier, cacheStrategy)
             val core = PdfRendererCore(fileDescriptor, manager, pdfRenderer)
             core.preloadPageDimensions()
             return@withContext core
@@ -82,70 +82,53 @@ internal class PdfRendererCore private constructor(
 
     private suspend fun pageExistInCache(pageNo: Int): Boolean = cacheManager.pageExistsInCache(pageNo)
 
-    fun renderPage(
-        pageNo: Int,
-        bitmap: Bitmap,
-        onBitmapReady: ((success: Boolean, pageNo: Int, bitmap: Bitmap?) -> Unit)? = null,
-    ) {
-        if (pageNo < 0 || pageNo >= getPageCount()) {
-            debugLog(METRICS_TAG) { "⚠️ Skipped invalid render for page $pageNo" }
-            onBitmapReady?.invoke(false, pageNo, null)
+    fun renderPage(pageNumber: Int, size: Size, onBitmapReady: (pageNumber: Int, bitmap: Bitmap?) -> Unit) {
+        if (pageNumber < 0 || pageNumber >= getPageCount()) {
+            debugLog(METRICS_TAG) { "⚠️ Skipped invalid render for page $pageNumber" }
+            onBitmapReady(pageNumber, null)
             return
         }
 
         scope.launch {
-            val cachedBitmap = cacheManager.getBitmapFromCache(pageNo)
+            val cachedBitmap = cacheManager.getBitmapFromCache(pageNumber)
             if (cachedBitmap != null) {
                 withContext(Dispatchers.Main) {
-                    onBitmapReady?.invoke(true, pageNo, cachedBitmap)
-                    debugLog(LOG_TAG) { "Page $pageNo loaded from cache" }
+                    onBitmapReady(pageNumber, cachedBitmap)
+                    debugLog(LOG_TAG) { "Page $pageNumber loaded from cache" }
                 }
                 return@launch
             }
 
-            if (renderJobs[pageNo]?.isActive == true) return@launch
-            renderJobs[pageNo]?.cancel()
-            renderJobs[pageNo] = launch {
-                var success = false
+            if (renderJobs[pageNumber]?.isActive == true) return@launch
+            renderJobs[pageNumber]?.cancel()
+            renderJobs[pageNumber] = launch {
                 var renderedBitmap: Bitmap? = null
 
                 renderLock.withLock {
-                    if (!isRendererOpen) return@withLock
-                    val pdfPage = openPageSafely(pageNo).takeIf { isRendererOpen } ?: return@withLock
+                    val pdfPage = openPageSafely(pageNumber) ?: return@withLock
+
+                    val bitmap = BitmapPool.runCatching { getBitmap(width = size.width, height = size.height) }.getOrNull()
+                    if (bitmap == null) {
+                        debugLog(LOG_TAG) { "Failed to obtain bitmap for page $pageNumber" }
+                        return@withLock
+                    }
 
                     try {
-                        pdfPage.render(
-                            bitmap,
-                            null,
-                            null,
-                            PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY
-                        )
-                        addBitmapToMemoryCache(pageNo, bitmap)
-                        success = true
+                        pdfPage.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                        addBitmapToMemoryCache(pageNumber, bitmap)
                         renderedBitmap = bitmap
                     } catch (e: Exception) {
-                        debugLog(LOG_TAG, e) { "Error rendering page $pageNo: ${e.message}" }
+                        debugLog(LOG_TAG, e) { "Error rendering page $pageNumber: ${e.message}" }
+                        BitmapPool.recycleBitmap(bitmap)
                     }
                 }
 
                 withContext(Dispatchers.Main) {
-                    onBitmapReady?.invoke(success, pageNo, renderedBitmap)
+                    onBitmapReady(pageNumber, renderedBitmap)
                 }
             }
         }
     }
-
-    suspend fun renderPageAsync(pageNo: Int, width: Int, height: Int): Bitmap? =
-        suspendCancellableCoroutine { continuation ->
-            val bitmap = BitmapPool.getBitmap(width, height)
-            renderPage(pageNo, bitmap) { success, _, renderedBitmap ->
-                if (success) continuation.resume(renderedBitmap ?: bitmap, null)
-                else {
-                    BitmapPool.recycleBitmap(bitmap)
-                    continuation.resume(null, null)
-                }
-            }
-        }
 
     fun preloadPageDimensions() {
         scope.launch {
@@ -189,10 +172,7 @@ internal class PdfRendererCore private constructor(
                     val aspectRatio = size.width.toFloat() / size.height.toFloat()
                     val height = (fallbackWidth / aspectRatio).toInt()
 
-                    val bitmap = BitmapPool.getBitmap(fallbackWidth, maxOf(1, height))
-                    renderPage(pageNo, bitmap) { success, _, _ ->
-                        if (!success) BitmapPool.recycleBitmap(bitmap)
-                    }
+                    renderPage(pageNo, Size(fallbackWidth, maxOf(1, height))) { _, _ -> }
                 }
             }
         }
@@ -248,11 +228,6 @@ internal class PdfRendererCore private constructor(
             debugLog(LOG_TAG, e) { "Error opening page $pageNo: ${e.message}" }
             null
         }
-    }
-
-    fun cancelRender(pageNo: Int) {
-        renderJobs[pageNo]?.cancel()
-        renderJobs.remove(pageNo)
     }
 
     private fun closeAllOpenPages() {
