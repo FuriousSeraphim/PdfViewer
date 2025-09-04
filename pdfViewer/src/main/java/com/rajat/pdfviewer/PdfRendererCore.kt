@@ -39,17 +39,17 @@ internal class PdfRendererCore private constructor(
     companion object {
         internal val prefetchDistance: Int = 2
 
-        suspend fun create(
+        fun create(
             context: Context,
             fileDescriptor: ParcelFileDescriptor,
             cacheIdentifier: String,
             cacheStrategy: CacheStrategy,
-        ): PdfRendererCore = withContext(Dispatchers.IO) {
+        ): PdfRendererCore {
             val pdfRenderer = PdfRenderer(fileDescriptor)
             val manager = CacheManager(context, cacheIdentifier, cacheStrategy)
             val core = PdfRendererCore(fileDescriptor, manager, pdfRenderer)
-            core.preloadPageDimensions()
-            return@withContext core
+            // core.preloadPageDimensions()
+            return core
         }
 
         fun getFileDescriptor(file: File): ParcelFileDescriptor {

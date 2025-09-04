@@ -134,16 +134,7 @@ class PdfRendererView @JvmOverloads constructor(
         }
     }
 
-    /**
-     * Initializes the PDF view with a remote URL. Downloads and renders the PDF.
-     *
-     * @param url The URL of the PDF file.
-     * @param headers Optional HTTP headers.
-     * @param coroutineScope Scope for managing coroutines.
-     * @param lifecycle Lifecycle to observe for cleanup.
-     * @param cacheStrategy Cache strategy to apply.
-     */
-    fun initWithUrl(
+    fun display(
         url: String,
         headers: Map<String, String> = emptyMap(),
         cacheStrategy: CacheStrategy = CacheStrategy.MAXIMIZE_PERFORMANCE,
@@ -162,7 +153,7 @@ class PdfRendererView @JvmOverloads constructor(
                 },
                 onSuccess = {
                     try {
-                        initWithFile(it, cacheStrategy)
+                        display(it, cacheStrategy)
                         statusListener?.onPdfLoadSuccess(it.absolutePath)
                     } catch (e: Exception) {
                         statusListener?.onError(e)
@@ -173,78 +164,47 @@ class PdfRendererView @JvmOverloads constructor(
         ).start()
     }
 
-    /**
-     * Initializes the PDF view with a local [File].
-     *
-     * @param file The PDF file to render.
-     * @param cacheStrategy Cache strategy to apply.
-     */
-    fun initWithFile(file: File, cacheStrategy: CacheStrategy = CacheStrategy.MAXIMIZE_PERFORMANCE) {
+    fun display(file: File, cacheStrategy: CacheStrategy = CacheStrategy.MAXIMIZE_PERFORMANCE) {
         statusListener?.onPdfRenderStart()
         viewJob.cancelChildren()
-        viewScope.launch {
-            try {
-                val fileDescriptor = PdfRendererCore.getFileDescriptor(file)
-                val renderer = PdfRendererCore.create(
-                    context = context,
-                    fileDescriptor = fileDescriptor,
-                    cacheIdentifier = file.name,
-                    cacheStrategy = cacheStrategy,
-                )
-                withContext(Dispatchers.Main) {
-                    initializeRenderer(renderer)
-                    statusListener?.onPdfLoadSuccess(file.absolutePath)
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    statusListener?.onError(e)
-                }
-            }
+        try {
+            val renderer = PdfRendererCore.create(
+                context = context,
+                fileDescriptor = PdfRendererCore.getFileDescriptor(file),
+                cacheIdentifier = file.name,
+                cacheStrategy = cacheStrategy,
+            )
+            initializeRenderer(renderer)
+            statusListener?.onPdfLoadSuccess(file.absolutePath)
+        } catch (e: Exception) {
+            statusListener?.onError(e)
         }
     }
 
-    fun initWithAsset(
-        assetFileName: String,
-        cacheStrategy: CacheStrategy = CacheStrategy.MAXIMIZE_PERFORMANCE,
-    ) {
+    fun display(assetFileName: String, cacheStrategy: CacheStrategy = CacheStrategy.MAXIMIZE_PERFORMANCE) {
         viewJob.cancelChildren()
         viewScope.launch {
             val file = FileUtils.fileFromAsset(context, assetFileName)
             withContext(Dispatchers.Main) {
-                initWithFile(file, cacheStrategy)
+                display(file, cacheStrategy)
             }
         }
     }
 
-    /**
-     * Initializes the PDF view with a content [Uri]. Useful for opening from storage provider.
-     *
-     * @param uri The Uri to the PDF file.
-     */
-    fun initWithUri(
-        uri: Uri,
-        cacheStrategy: CacheStrategy = CacheStrategy.MAXIMIZE_PERFORMANCE,
-    ) {
+    fun display(uri: Uri, cacheStrategy: CacheStrategy = CacheStrategy.MAXIMIZE_PERFORMANCE) {
         statusListener?.onPdfRenderStart()
         viewJob.cancelChildren()
-        viewScope.launch {
-            try {
-                val fileDescriptor = context.contentResolver.openFileDescriptor(uri, "r") ?: return@launch
-                val renderer = PdfRendererCore.create(
-                    context = context,
-                    fileDescriptor = fileDescriptor,
-                    cacheIdentifier = uri.toString().hashCode().toString(),
-                    cacheStrategy = cacheStrategy,
-                )
-                withContext(Dispatchers.Main) {
-                    initializeRenderer(renderer)
-                    statusListener?.onPdfLoadSuccess("uri:$uri")
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    statusListener?.onError(e)
-                }
-            }
+        try {
+            val renderer = PdfRendererCore.create(
+                context = context,
+                fileDescriptor = this.context.contentResolver.openFileDescriptor(uri, "r") ?: return,
+                cacheIdentifier = uri.toString().hashCode().toString(),
+                cacheStrategy = cacheStrategy,
+            )
+            initializeRenderer(renderer)
+            statusListener?.onPdfLoadSuccess("uri:$uri")
+        } catch (e: Exception) {
+            statusListener?.onError(e)
         }
     }
 
@@ -323,13 +283,6 @@ class PdfRendererView @JvmOverloads constructor(
         preloadCacheIntoMemory()
     }
 
-    /**
-     * Scrolls the RecyclerView to the specified PDF page.
-     *
-     * @param pageNumber The page number to scroll to (0-based).
-     * @param smoothScroll Whether to use smooth scrolling.
-     * @param delayMillis Optional delay before scrolling (default 150ms).
-     */
     fun jumpToPage(pageNumber: Int, smoothScroll: Boolean = true, delayMillis: Long = 150L) {
         if (pageNumber !in 0 until totalPageCount) return
         if (!::recyclerView.isInitialized) {
@@ -370,9 +323,6 @@ class PdfRendererView @JvmOverloads constructor(
         statusListener?.onPageChanged(position, totalPageCount)
     }
 
-    /**
-     * Closes the current PDF rendering session and frees associated resources.
-     */
     fun closePdfRender() {
         if (pdfRendererCoreInitialised) {
             pdfRendererCore.closePdfRender()
@@ -384,11 +334,6 @@ class PdfRendererView @JvmOverloads constructor(
         return pdfRendererCore.getBitmapFromCache(page)
     }
 
-    /**
-     * Returns all the pages that have been rendered and are cached.
-     *
-     * @return List of Bitmap pages.
-     */
     suspend fun getLoadedBitmaps(): List<Bitmap> {
         return (0..<totalPageCount).mapNotNull { page ->
             getBitmapByPage(page)
@@ -439,11 +384,6 @@ class PdfRendererView @JvmOverloads constructor(
         }
     }
 
-    /**
-     * Returns the current scroll direction of the view.
-     *
-     * @return 1 = scrolling down, -1 = up, 0 = idle.
-     */
     fun getScrollDirection(): Int = when {
         lastDy > 0 -> 1   // down/forward
         lastDy < 0 -> -1  // up/backward

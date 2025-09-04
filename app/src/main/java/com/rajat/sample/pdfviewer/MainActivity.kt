@@ -5,11 +5,9 @@ import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.view.View
-import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
-import androidx.lifecycle.lifecycleScope
 import com.rajat.pdfviewer.PdfRendererView
 import com.rajat.pdfviewer.RenderQuality
 import com.rajat.pdfviewer.util.CacheStrategy
@@ -96,7 +94,7 @@ class MainActivity: AppCompatActivity() {
         }
 
         findViewById<View>(R.id.onlinePdf).setOnClickListener {
-            pdfView.initWithUrl(
+            pdfView.display(
                 url = largePdf1,
                 cacheStrategy = CacheStrategy.MINIMIZE_CACHE
             )
@@ -107,11 +105,11 @@ class MainActivity: AppCompatActivity() {
         }
 
         findViewById<View>(R.id.fromAssets).setOnClickListener {
-            pdfView.initWithAsset(assetFileName = "quote.pdf")
+            pdfView.display(assetFileName = "quote.pdf")
         }
 
         findViewById<View>(R.id.showInView).setOnClickListener {
-            pdfView.initWithUrl(
+            pdfView.display(
                 url = largePdf,
                 cacheStrategy = CacheStrategy.MINIMIZE_CACHE
             )
@@ -120,6 +118,6 @@ class MainActivity: AppCompatActivity() {
 
     private fun launchPdfFromUri(uri: Uri) {
         val pdfView = findViewById<PdfRendererView>(R.id.pdfView)
-        pdfView.initWithUri(uri)
+        pdfView.display(uri)
     }
 }
