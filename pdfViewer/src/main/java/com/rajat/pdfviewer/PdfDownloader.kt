@@ -142,10 +142,11 @@ internal class PdfDownloader(
                 val response = makeNetworkRequest(downloadUrl)
                 validateResponse(response)
 
-                response.body.use { body ->
+                response.body?.use { body ->
+                    val handler = Handler(Looper.getMainLooper())
                     body.byteStream().use { inputStream ->
                         writeFile(inputStream, tempFile, body.contentLength()) { progress ->
-                            Handler(Looper.getMainLooper()).post {
+                            handler.post {
                                 listener.onDownloadProgress(progress, body.contentLength())
                             }
                         }
