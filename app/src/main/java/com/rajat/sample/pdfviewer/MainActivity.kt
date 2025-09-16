@@ -11,12 +11,13 @@ import androidx.core.view.WindowCompat
 import com.rajat.pdfviewer.PdfRendererView
 import com.rajat.pdfviewer.RenderQuality
 import com.rajat.pdfviewer.util.CacheStrategy
+import java.io.File
 
 class MainActivity: AppCompatActivity() {
 
     // Sample PDF URLs
-    private val largePdf = "https://css4.pub/2015/usenix/example.pdf"
-    private val largePdf1 = "https://research.nhm.org/pdfs/10840/10840.pdf"
+    private val largePdf = "https://www-de.wera.de/fileadmin/user_upload/downloads/manuals/11190486-00000177-02_screen.pdf"
+    private val largePdf1 = "https://www-de.wera.de/fileadmin/user_upload/downloads/manuals/11190486-00000177-02_screen.pdf"
     private val localPdf = "http://192.168.0.72:8001/pw.pdf"
     private val newsletterPdf = "https://css4.pub/2017/newsletter/drylab.pdf"
     private val textbookPdf = "https://css4.pub/2015/textbook/somatosensory.pdf"
@@ -56,7 +57,7 @@ class MainActivity: AppCompatActivity() {
     private fun setupViews() {
         val pdfView = findViewById<PdfRendererView>(R.id.pdfView).apply {
             renderQuality = RenderQuality.HIGH
-            statusListener = object: PdfRendererView.StatusCallBack {
+            statusListener = object: PdfRendererView.StatusCallback {
                 override fun onPdfLoadStart() {
                     Log.i("PDF Status", "Loading started")
                 }
@@ -65,8 +66,12 @@ class MainActivity: AppCompatActivity() {
                     Log.i("PDF Status", "Download progress: $progress%")
                 }
 
-                override fun onPdfLoadSuccess(absolutePath: String) {
-                    Log.i("PDF Status", "Load successful: $absolutePath")
+                override fun onPdfLoadSuccess(uri: Uri) {
+                    Log.i("PDF Status", "Load successful: $uri")
+                }
+
+                override fun onPdfLoadSuccess(file: File) {
+                    Log.i("PDF Status", "Load successful: ${file.absolutePath}")
                 }
 
                 override fun onError(error: Throwable) {

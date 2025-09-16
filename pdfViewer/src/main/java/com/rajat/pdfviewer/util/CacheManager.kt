@@ -85,7 +85,7 @@ internal class CacheManager(
 
     companion object {
         const val MAX_CACHED_PDFS = 5
-        const val CACHE_PATH = "___pdf___cache___"
+        const val CACHE_PATH = "pdf_viewer_cache"
 
         suspend fun clearCacheDir(context: Context) {
             withContext(Dispatchers.IO) {

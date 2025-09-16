@@ -87,7 +87,7 @@ class PdfRendererView @JvmOverloads constructor(
 
     var zoomListener: ZoomListener? = null
     var scrollListener: ScrollListener? = null
-    var statusListener: StatusCallBack? = null
+    var statusListener: StatusCallback? = null
     var renderQuality: RenderQuality = RenderQuality.NORMAL
         set(value) {
             field = value
@@ -101,7 +101,8 @@ class PdfRendererView @JvmOverloads constructor(
 
     // region Public APIs
     fun isZoomedIn(): Boolean = this::recyclerView.isInitialized && recyclerView.isZoomedIn()
-    fun getZoomScale(): Float = if (this::recyclerView.isInitialized) recyclerView.getZoomScale() else 1f
+    fun getZoomScale(): Float =
+        if (this::recyclerView.isInitialized) recyclerView.getZoomScale() else 1f
 
     val totalPageCount: Int
         get() {
@@ -151,15 +152,17 @@ class PdfRendererView @JvmOverloads constructor(
                 onProgress = { progress, current, total ->
                     statusListener?.onPdfLoadProgress(progress, current, total)
                 },
-                onSuccess = {
+                onSuccess = { file ->
                     try {
-                        display(it, cacheStrategy)
-                        statusListener?.onPdfLoadSuccess(it.absolutePath)
+                        display(file, cacheStrategy)
+                        statusListener?.onPdfLoadSuccess(file)
                     } catch (e: Exception) {
                         statusListener?.onError(e)
                     }
                 },
-                onError = { statusListener?.onError(it) }
+                onError = { throwable ->
+                    statusListener?.onError(throwable)
+                }
             )
         ).start()
     }
@@ -175,13 +178,16 @@ class PdfRendererView @JvmOverloads constructor(
                 cacheStrategy = cacheStrategy,
             )
             initializeRenderer(renderer)
-            statusListener?.onPdfLoadSuccess(file.absolutePath)
+            statusListener?.onPdfLoadSuccess(file)
         } catch (e: Exception) {
             statusListener?.onError(e)
         }
     }
 
-    fun display(assetFileName: String, cacheStrategy: CacheStrategy = CacheStrategy.MAXIMIZE_PERFORMANCE) {
+    fun display(
+        assetFileName: String,
+        cacheStrategy: CacheStrategy = CacheStrategy.MAXIMIZE_PERFORMANCE,
+    ) {
         viewJob.cancelChildren()
         viewScope.launch {
             val file = FileUtils.fileFromAsset(context, assetFileName)
@@ -197,12 +203,12 @@ class PdfRendererView @JvmOverloads constructor(
         try {
             val renderer = PdfRendererCore.create(
                 context = context,
-                fileDescriptor = this.context.contentResolver.openFileDescriptor(uri, "r") ?: return,
+                fileDescriptor = context.contentResolver.openFileDescriptor(uri, "r") ?: return,
                 cacheIdentifier = uri.toString().hashCode().toString(),
                 cacheStrategy = cacheStrategy,
             )
             initializeRenderer(renderer)
-            statusListener?.onPdfLoadSuccess("uri:$uri")
+            statusListener?.onPdfLoadSuccess(uri)
         } catch (e: Exception) {
             statusListener?.onError(e)
         }
@@ -252,7 +258,12 @@ class PdfRendererView @JvmOverloads constructor(
             PdfPageScrollListener(
                 updatePage = { updatePageNumberDisplay(it) },
                 schedulePrefetch = { page ->
-                    pdfRendererCore.schedulePrefetch(page, recyclerView.width, recyclerView.height, 0)
+                    pdfRendererCore.schedulePrefetch(
+                        page,
+                        recyclerView.width,
+                        recyclerView.height,
+                        0
+                    )
                 }
             )
         )
@@ -291,7 +302,8 @@ class PdfRendererView @JvmOverloads constructor(
         }
 
         recyclerView.postDelayed(delayMillis) {
-            val layoutManager = recyclerView.layoutManager as? LinearLayoutManager ?: return@postDelayed
+            val layoutManager =
+                recyclerView.layoutManager as? LinearLayoutManager ?: return@postDelayed
             val adapter = recyclerView.adapter ?: return@postDelayed
             if (adapter.itemCount == 0) return@postDelayed
 
@@ -391,10 +403,11 @@ class PdfRendererView @JvmOverloads constructor(
     }
 
     // region Interfaces
-    interface StatusCallBack {
+    interface StatusCallback {
         fun onPdfLoadStart() {}
         fun onPdfLoadProgress(progress: Int, downloadedBytes: Long, totalBytes: Long?) {}
-        fun onPdfLoadSuccess(absolutePath: String) {}
+        fun onPdfLoadSuccess(uri: Uri) {}
+        fun onPdfLoadSuccess(file: File) {}
         fun onError(error: Throwable) {}
         fun onPageChanged(currentPage: Int, totalPage: Int) {}
         fun onPdfRenderStart() {}

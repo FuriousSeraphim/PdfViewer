@@ -73,7 +73,7 @@ internal class PdfDownloader(
 
         val cacheDir = File(
             listener.getContext().cacheDir,
-            "___pdf___cache___/$cachedFileName"
+            "${CacheManager.CACHE_PATH}/$cachedFileName"
         ).apply { mkdirs() }
 
         val pdfFile = File(cacheDir, cachedFileName)

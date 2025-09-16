@@ -1,14 +1,8 @@
 package com.rajat.pdfviewer.util
 
-import android.content.ContentResolver
-import android.content.ContentValues
 import android.content.Context
 import android.graphics.pdf.PdfRenderer
-import android.net.Uri
-import android.os.Build
-import android.os.Environment
 import android.os.ParcelFileDescriptor
-import android.provider.MediaStore
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -40,36 +34,8 @@ internal object FileUtils {
         }
     }
 
-    suspend fun uriToFile(context: Context, uri: Uri): File = withContext(Dispatchers.IO) {
-        val inputStream = context.contentResolver.openInputStream(uri)
-            ?: throw IOException("Failed to open URI: $uri")
-        val tempFile = File.createTempFile("pdf_temp", ".pdf", context.cacheDir)
-        inputStream.use { it.copyTo(tempFile.outputStream()) }
-        tempFile
-    }
-
-    suspend fun createPdfDocumentUri(contentResolver: ContentResolver, fileName: String): Uri =
-        withContext(Dispatchers.IO) {
-            val contentValues = ContentValues().apply {
-                put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
-                put(MediaStore.MediaColumns.MIME_TYPE, "application/pdf")
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOCUMENTS)
-                }
-            }
-
-            contentResolver.insert(MediaStore.Files.getContentUri("external"), contentValues)
-                ?: throw IOException("Failed to create new MediaStore record.")
-        }
-
     fun getCachedFileName(url: String): String {
         return CacheHelper.getCacheKey(url) + ".pdf"
-    }
-
-    fun clearPdfCache(context: Context, exceptFileName: String? = null) {
-        val cacheDir = context.cacheDir
-        cacheDir.listFiles { _, name -> name.endsWith(".pdf") && name != exceptFileName }
-            ?.forEach { it.delete() }
     }
 
     fun writeFile(inputStream: InputStream, file: File, totalLength: Long, onProgress: (Long) -> Unit) {
