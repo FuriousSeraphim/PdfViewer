@@ -187,12 +187,11 @@ internal class PdfDownloader(
             throw DownloadFailedException("Failed to download PDF, HTTP Status: ${response.code}")
         }
 
-        val contentType = response.header("Content-Type", "")
-        if (!contentType.isNullOrEmpty() && !contentType.contains(
-                "application/pdf",
-                ignoreCase = true
-            )
-        ) {
+        val contentType = response.header("Content-Type", "") ?: return
+        val isBinary = contentType.contains("application/octet-stream", ignoreCase = true)
+        val isPdf = contentType.contains("application/pdf", ignoreCase = true)
+
+        if (!isPdf && !isBinary) {
             throw InvalidPdfException("Invalid content type received: $contentType. Expected a PDF file.")
         }
     }
